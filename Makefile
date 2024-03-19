@@ -23,5 +23,10 @@ bin/%.c.o: src/%.c
 flash: bin/$(PROJECT).elf
 	openocd -f /usr/share/openocd/scripts/interface/stlink.cfg -f /usr/share/openocd/scripts/target/stm32f1x.cfg -c "program $< verify reset exit"
 
+monitor:
+	screen /dev/ttyUSB0 115200
+
 clean:
 	rm -fr bin/
+
+.PHONY: flash monitor clean
