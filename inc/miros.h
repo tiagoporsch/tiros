@@ -3,9 +3,9 @@
 #include <stdint.h>
 
 typedef struct {
-    void* sp; // stack pointer
-    uint32_t timeout; // timeout delay down-counter
-    uint8_t priority; // thread priority
+	void* sp; // stack pointer
+	uint32_t timeout; // timeout delay down-counter
+	uint8_t priority; // thread priority
 } OSThread;
 
 typedef void (*OSThreadHandler)();
