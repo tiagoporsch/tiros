@@ -1,47 +1,5 @@
-/*============================================================================
-* QP/C Real-Time Embedded Framework (RTEF)
-* Copyright (C) 2005 Quantum Leaps, LLC. All rights reserved.
-*
-* SPDX-License-Identifier: GPL-3.0-or-later OR LicenseRef-QL-commercial
-*
-* This software is dual-licensed under the terms of the open source GNU
-* General Public License version 3 (or any later version), or alternatively,
-* under the terms of one of the closed source Quantum Leaps commercial
-* licenses.
-*
-* The terms of the open source GNU General Public License version 3
-* can be found at: <www.gnu.org/licenses/gpl-3.0>
-*
-* The terms of the closed source Quantum Leaps commercial licenses
-* can be found at: <www.state-machine.com/licensing>
-*
-* Redistributions in source code must retain this top-level comment block.
-* Plagiarizing this software to sidestep the license obligations is illegal.
-*
-* Contact information:
-* <www.state-machine.com>
-* <info@state-machine.com>
-============================================================================*/
-/*!
-* @date Last updated on: 2021-12-23
-* @version Last updated for: @ref qpc_7_0_0
-*
-* @file
-* @brief Customizable and memory-efficient assertions for embedded systems
-*/
 #ifndef QASSERT_H
 #define QASSERT_H
-
-/*!
-* @note
-* This header file can be used in C, C++, and mixed C/C++ programs.
-*
-* @note
-* The preprocessor switch #Q_NASSERT disables checking assertions.
-* However, it is generally __not__ advisable to disable assertions,
-* __especially__ in the production code. Instead, the assertion handler
-* Q_onAssert() should be very carefully designed and tested.
-*/
 
 #ifdef Q_NASSERT /* Q_NASSERT defined--assertion checking disabled */
 
@@ -115,7 +73,7 @@
     * with the #Q_NASSERT switch.
     */
     #define Q_ASSERT(test_) ((test_) \
-        ? (void)0 : Q_onAssert(&Q_this_module_[0], __LINE__))
+        ? (void)0 : q_onAssert(&Q_this_module_[0], __LINE__))
 
     /*! General purpose assertion with user-specified assertion-id.
     * @description
@@ -133,7 +91,7 @@
     * disabled with the #Q_NASSERT switch.
     */
     #define Q_ASSERT_ID(id_, test_) ((test_) \
-        ? (void)0 : Q_onAssert(&Q_this_module_[0], (id_)))
+        ? (void)0 : q_onAssert(&Q_this_module_[0], (id_)))
 
     /*! General purpose assertion that __always__ evaluates the @p test_
     * expression.
@@ -170,7 +128,7 @@
     * @note Does noting if assertions are disabled with the #Q_NASSERT switch.
     */
     #define Q_ERROR() \
-        Q_onAssert(&Q_this_module_[0], __LINE__)
+        q_onAssert(&Q_this_module_[0], __LINE__)
 
     /*! Assertion with user-specified assertion-id for a wrong path
     * @description
@@ -185,7 +143,7 @@
     * @note Does noting if assertions are disabled with the #Q_NASSERT switch.
     */
     #define Q_ERROR_ID(id_) \
-        Q_onAssert(&Q_this_module_[0], (id_))
+        q_onAssert(&Q_this_module_[0], (id_))
 
 #endif /* Q_NASSERT */
 
@@ -226,7 +184,7 @@
 * #Q_ERROR, #Q_ALLEGE as well as #Q_ASSERT_ID, #Q_REQUIRE_ID, #Q_ENSURE_ID,
 * #Q_ERROR_ID, and #Q_ALLEGE_ID.
 */
-Q_NORETURN Q_onAssert(char const * const module, int_t const location);
+Q_NORETURN q_onAssert(char const * const module, int_t const location);
 
 #ifdef __cplusplus
     }

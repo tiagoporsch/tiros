@@ -3,24 +3,9 @@
 #include <stdint.h>
 
 /*
- * SCB
+ * Nested Vectored Interrupt Controller (NVIC)
  */
-struct scb {
-	volatile uint32_t cpuid; // CPUID Base Register
-	volatile uint32_t icsr; // Interrupt Control and State Register
-	volatile uint32_t vtor; // Vector Table Offset Register
-	volatile uint32_t aircr; // Application Interrupt and Reset Control Register
-	volatile uint32_t scr; // System Control Register
-	volatile uint32_t ccr; // Configuration Control Register
-	volatile uint8_t shp[12]; // System Handlers Priority Registers
-};
-
-#define SCB ((struct scb*) 0xE000ED00UL)
-
-/*
- * NVIC
- */
-typedef struct {
+struct nvic {
 	volatile uint32_t iser[8]; // Interrupt Set Enable Register
 	volatile uint32_t reserved0[24];
 	volatile uint32_t icer[8]; // Interruppt Clear Enable Register
@@ -34,64 +19,77 @@ typedef struct {
 	volatile uint8_t ip[240]; // Interrupt Priority Register
 	volatile uint32_t reserved5[24];
 	volatile uint32_t stir; // Software Trigger Interrupt Register
-} NVIC;
+};
 
-#define NVIC_PRIO_BITS 4U
+#define NVIC_PRIO_BITS 4
 
-void nvic_set_priority(int irq, uint32_t priority);
+void nvic_setPriotity(int irq, uint32_t priority);
+
+/*
+ * System Control Block (SCB)
+ */
+struct scb {
+	volatile uint32_t cpuid; // CPUID Base Register
+	volatile uint32_t icsr; // Interrupt Control and State Register
+	volatile uint32_t vtor; // Vector Table Offset Register
+	volatile uint32_t aircr; // Application Interrupt and Reset Control Register
+	volatile uint32_t scr; // System Control Register
+	volatile uint32_t ccr; // Configuration Control Register
+	volatile uint8_t shp[12]; // System Handlers Priority Registers
+};
+
+#define SCB ((struct scb*) 0xE000ED00)
 
 /*
  * SYSTICK
  */
 struct systick {
-	volatile uint32_t csr;		/* 00 */
-	volatile uint32_t reload;	/* 04 */
-	volatile uint32_t value;	/* 08 */
-	volatile uint32_t calib;	/* 0C */
+	volatile uint32_t csr; // Control and Status Register
+	volatile uint32_t load; // Reload Value Register
+	volatile uint32_t val; // Current Value Register
+	volatile uint32_t calib; // Calibration Register
 };
 
 #define SYSTICK ((struct systick*) 0xE000E010)
 
-#define	SYSTICK_ENABLE 0x01
-#define	SYSTICK_INTPEND 0x02
-#define	SYSTICK_SYSCLK 0x04
+#define	SYSTICK_ENABLE (1 << 0)
+#define	SYSTICK_TICKINT (1 << 1)
+#define	SYSTICK_CLKSOURCE (1 << 2)
 
-void systick_handler(void);
-void systick_init(unsigned long ticks);
+extern void systick_handler(void);
+void systick_init(uint32_t ticks);
 
 /*
- * RCC
+ * Reset and Clock Control (RCC)
  */
 struct rcc {
-	volatile uint32_t ccr;	/* 00 - clock control */
-	volatile uint32_t cfg;	/* 04 - clock config */
-	volatile uint32_t cir;	/* 08 - clock interrupt */
-	volatile uint32_t apb2;	/* 0c - peripheral reset */
-	volatile uint32_t apb1;	/* 10 - peripheral reset */
-	volatile uint32_t ape3;	/* 14 - peripheral enable */
-	volatile uint32_t ape2;	/* 18 - peripheral enable */
-	volatile uint32_t ape1;	/* 1c - peripheral enable */
-	volatile uint32_t bdcr;	/* 20 - xx */
-	volatile uint32_t csr;	/* 24 - xx */
+	volatile uint32_t cr; // clock control
+	volatile uint32_t cfgr; // clock config
+	volatile uint32_t cir; // clock interrupt
+	volatile uint32_t apb2; // peripheral reset
+	volatile uint32_t apb1; // peripheral reset
+	volatile uint32_t ape3; // peripheral enable
+	volatile uint32_t ape2; // peripheral enable
+	volatile uint32_t ape1; // peripheral enable
+	volatile uint32_t bdcr; // xx
+	volatile uint32_t csr; // xx
 };
 
 #define RCC ((struct rcc*) 0x40021000)
 #define RCC_SYS_CLOCK 72000000
 
-// CCR
-#define RCC_PLL_ENABLE 0x01000000
-#define RCC_PLL_LOCK 0x02000000
-#define RCC_HSI_ON 0x00001
-#define RCC_HSE_ON 0x10000
-#define RCC_HSE_TRIM 0x00080
+#define RCC_CR_HSION (1 << 0)
+#define RCC_CR_HSITRIM (1 << 7)
+#define RCC_CR_HSEON (1 << 16)
+#define RCC_CR_PLLON (1 << 24)
+#define RCC_CR_PLLRDY (1 << 25)
 
-// CFG
-#define RCC_SYS_HSI 0x00
-#define RCC_SYS_HSE 0x01
-#define RCC_SYS_PLL 0X02
-#define RCC_APB1_DIV2 (4 << 8)
-#define RCC_PLL_HSE 0x10000
-#define RCC_PLL_9 (7 << 18)
+#define RCC_CFGR_SW_HSI 0x00
+#define RCC_CFGR_SW_HSE 0x01
+#define RCC_CFGR_SW_PLL 0X02
+#define RCC_CFGR_PPRE1_2 (4 << 8)
+#define RCC_CFGR_PLLSRC 0x10000
+#define RCC_CFGR_PLLMULL9 (7 << 18)
 
 // APE2
 #define RCC_GPIOA_ENABLE 0x04
@@ -140,6 +138,7 @@ struct gpio {
 #define GPIO_MODE_ALT_PUSH_PULL 8
 #define GPIO_MODE_ALT_OPEN_DRAIN 12
 
+void gpio_init(struct gpio* gpio);
 void gpio_mode(struct gpio* gpio, int pin, int mode);
 void gpio_on(struct gpio* gpio, int pin);
 void gpio_off(struct gpio* gpio, int pin);
@@ -161,16 +160,16 @@ struct uart {
 #define UART2 ((struct uart*) 0x40004400)
 #define UART3 ((struct uart*) 0x40004800)
 
-#define ST_PE 0x0001
-#define ST_FE 0x0002
-#define	ST_NE 0x0004
-#define	ST_OVER 0x0008
-#define	ST_IDLE 0x0010
-#define	ST_RXNE 0x0020 /* Receiver not empty */
-#define	ST_TC 0x0040 /* Transmission complete */
-#define	ST_TXE 0x0080 /* Transmitter empty */
-#define	ST_BREAK 0x0100
-#define	ST_CTS 0x0200
+#define UART_PE 0x0001
+#define UART_FE 0x0002
+#define	UART_NE 0x0004
+#define	UART_OVER 0x0008
+#define	UART_IDLE 0x0010
+#define	UART_RXNE 0x0020 /* Receiver not empty */
+#define	UART_TC 0x0040 /* Transmission complete */
+#define	UART_TXE 0x0080 /* Transmitter empty */
+#define	UART_BREAK 0x0100
+#define	UART_CTS 0x0200
 
 void uart_init(struct uart* uart, int baud);
 void uart_putc(struct uart* uart, int c);

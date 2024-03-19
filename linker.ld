@@ -1,13 +1,18 @@
+_estack = ORIGIN(RAM) + LENGTH(RAM);
+
 MEMORY {
-	flash(RX)  : ORIGIN = 0x08000000, LENGTH = 128K
-	sram(WAIL) : ORIGIN = 0x20000000, LENGTH = 20K
+	FLASH (RX) : ORIGIN = 0x08000000, LENGTH = 64K
+	RAM (RWX)  : ORIGIN = 0x20000000, LENGTH = 20K
 }
 
 SECTIONS {
-	.text : { *(.text*) } > flash
-	.bss  : {
+	.text : {
+		*(.isr_vector)
+		*(.text*)
+	} > FLASH
+	.bss : {
 		_sbss = .;
 		*(.bss*)
 		_ebss = .;
-	} > sram
+	} > RAM
 }
