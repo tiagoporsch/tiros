@@ -2,23 +2,23 @@
 
 #include <stdint.h>
 
+#include "cm3.h"
 #include "qassert.h"
 
 Q_DEFINE_THIS_FILE
 
 #define LOG2(x) (32U - __builtin_clz(x))
 
-static OSThread* volatile os_curr; // pointer to the current thread
-static OSThread* volatile os_next; // pointer to the next thread to run
-static OSThread* os_threads[32 + 1]; // array of threads started so far
+static Thread* volatile os_curr; // pointer to the current thread
+static Thread* volatile os_next; // pointer to the next thread to run
+static Thread* os_threads[32 + 1]; // array of threads started so far
 static uint32_t os_readySet; // bitmask of threads that are ready to run
 static uint32_t os_delayedSet; // bitmask of threads that are delayed
 
 static uint32_t idle_stack[40];
-static OSThread idle_thread;
+static Thread idle_thread;
 static void idle_main(void) {
-	for (;;)
-		asm volatile ("wfi");
+	for (;;);
 }
 
 void os_init(void) {
@@ -26,10 +26,15 @@ void os_init(void) {
 	(*(uint32_t volatile*) 0xE000ED20) |= (0xFFU << 16);
 
 	// start the idle thread
-	os_createThread(&idle_thread, 0U, &idle_main, idle_stack, sizeof(idle_stack));
+	thread_init(&idle_thread, 0U, &idle_main, idle_stack, sizeof(idle_stack));
 }
 
 void os_run(void) {
+	rcc_init();
+	uart_init(UART1, 115200);
+	systick_init(RCC_SYS_CLOCK / OS_ONE_SECOND);
+	nvic_setPriotity(-1, 0x00U);
+
 	asm volatile ("cpsid i" : : : "memory");
 	os_sched();
 	asm volatile ("cpsie i" : : : "memory");
@@ -37,7 +42,7 @@ void os_run(void) {
 }
 
 void os_sched(void) {
-	OSThread* next = os_threads[LOG2(os_readySet)];
+	Thread* next = os_threads[LOG2(os_readySet)];
 	if (next != os_curr) {
 		os_next = next;
 		(*(uint32_t volatile*) 0xE000ED04) |= (1UL << 28U);
@@ -48,8 +53,8 @@ void os_sched(void) {
 void os_tick(void) {
 	uint32_t workingSet = os_delayedSet;
 	while (workingSet != 0U) {
-		OSThread* thread = os_threads[LOG2(workingSet)];
-		Q_ASSERT((thread != (OSThread*) 0) && (thread->timeout != 0));
+		Thread* thread = os_threads[LOG2(workingSet)];
+		Q_ASSERT((thread != (Thread*) 0) && (thread->timeout != 0));
 
 		uint32_t bit = (1 << (thread->priority - 1));
 		if (--thread->timeout == 0U) {
@@ -62,7 +67,7 @@ void os_tick(void) {
 
 void os_yield(void) {
 	uint32_t bit = (1 << (os_curr->priority - 1));
-	OSThread* next = os_threads[LOG2(os_readySet & ~bit)];
+	Thread* next = os_threads[LOG2(os_readySet & ~bit)];
 	if (next != os_curr) {
 		os_next = next;
 		(*(uint32_t volatile*) 0xE000ED04) |= (1UL << 28U);
@@ -84,9 +89,12 @@ void os_delay(uint32_t ticks) {
 	asm volatile ("cpsie i" : : : "memory");
 }
 
-void os_createThread(OSThread* thread, uint8_t priority, void (*handler)(), void* stack, uint32_t stackSize) {
+/*
+ * Thread
+ */
+void thread_init(Thread* thread, uint8_t priority, void (*handler)(), void* stack, uint32_t stackSize) {
 	// Priority must be in range and the priority level must be unused
-	Q_ASSERT((priority < Q_DIM(os_threads)) && (os_threads[priority] == (OSThread*) 0));
+	Q_ASSERT((priority < Q_DIM(os_threads)) && (os_threads[priority] == (Thread*) 0));
 
 	// Round down the stack top to the 8-byte boundary
 	// NOTE: ARM Cortex-M stack grows down from hi -> low memory
@@ -122,6 +130,41 @@ void os_createThread(OSThread* thread, uint8_t priority, void (*handler)(), void
 	os_threads[thread->priority] = thread;
 	if (thread->priority > 0U)
 		os_readySet |= (1U << (thread->priority - 1U));
+}
+
+/*
+ * Semaphore
+ */
+void semaphore_init(Semaphore* semaphore, int32_t value) {
+	semaphore->value = value;
+}
+
+void semaphore_wait(Semaphore* semaphore) {
+	for (;;) {
+		asm volatile ("cpsid i" : : : "memory");
+		if (semaphore->value > 0) {
+			semaphore->value--;
+			asm volatile ("cpsie i" : : : "memory");
+			return;
+		} else {
+			asm volatile ("cpsie i" : : : "memory");
+			os_yield();
+		}
+	}
+}
+
+void semaphore_signal(Semaphore* semaphore) {
+	asm volatile ("cpsid i" : : : "memory");
+	semaphore->value++;
+	asm volatile ("cpsie i" : : : "memory");
+}
+
+/*
+ * Handlers
+ */
+void assert_handler(const char* module, int line) {
+	uart_printf(UART1, "ASSERT FAILED %s:%d\n", module, line);
+	for (;;);
 }
 
 void systick_handler(void) {

@@ -73,7 +73,7 @@
 	* with the #Q_NASSERT switch.
 	*/
 	#define Q_ASSERT(test_) ((test_) \
-		? (void)0 : q_onAssert(&Q_this_module_[0], __LINE__))
+		? (void)0 : assert_handler(&Q_this_module_[0], __LINE__))
 
 	/*! General purpose assertion with user-specified assertion-id.
 	* @description
@@ -91,7 +91,7 @@
 	* disabled with the #Q_NASSERT switch.
 	*/
 	#define Q_ASSERT_ID(id_, test_) ((test_) \
-		? (void)0 : q_onAssert(&Q_this_module_[0], (id_)))
+		? (void)0 : assert_handler(&Q_this_module_[0], (id_)))
 
 	/*! General purpose assertion that __always__ evaluates the @p test_
 	* expression.
@@ -128,7 +128,7 @@
 	* @note Does noting if assertions are disabled with the #Q_NASSERT switch.
 	*/
 	#define Q_ERROR() \
-		q_onAssert(&Q_this_module_[0], __LINE__)
+		assert_handler(&Q_this_module_[0], __LINE__)
 
 	/*! Assertion with user-specified assertion-id for a wrong path
 	* @description
@@ -143,7 +143,7 @@
 	* @note Does noting if assertions are disabled with the #Q_NASSERT switch.
 	*/
 	#define Q_ERROR_ID(id_) \
-		q_onAssert(&Q_this_module_[0], (id_))
+		assert_handler(&Q_this_module_[0], (id_))
 
 #endif /* Q_NASSERT */
 
@@ -184,7 +184,7 @@
 * #Q_ERROR, #Q_ALLEGE as well as #Q_ASSERT_ID, #Q_REQUIRE_ID, #Q_ENSURE_ID,
 * #Q_ERROR_ID, and #Q_ALLEGE_ID.
 */
-Q_NORETURN q_onAssert(char const * const module, int_t const location);
+Q_NORETURN assert_handler(char const * const module, int_t const location);
 
 #ifdef __cplusplus
 	}
