@@ -7,11 +7,9 @@
 void os_init(void);
 void os_run(void);
 
-void os_sched(void);
-void os_tick(void);
-
 void os_yield(void);
 void os_delay(uint32_t ticks);
+void os_exit(void);
 
 /*
  * Thread
@@ -27,10 +25,8 @@ void thread_init(Thread* thread, uint8_t priority, void (*handler)(), void* stac
 /*
  * Semaphore
  */
-typedef struct {
-	volatile int32_t value;
-} Semaphore;
+typedef uint32_t Semaphore;
 
-void semaphore_init(Semaphore* semaphore, int32_t value);
+void semaphore_init(Semaphore* semaphore, uint32_t value);
 void semaphore_wait(Semaphore* semaphore);
 void semaphore_signal(Semaphore* semaphore);

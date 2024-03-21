@@ -3,8 +3,24 @@
 #include <stdint.h>
 
 /*
+ * Instructions
+ */
+__attribute__((always_inline)) static inline void __disable_irq(void) {
+	asm volatile ("cpsid i" : : : "memory");
+}
+
+__attribute__((always_inline)) static inline void __enable_irq(void) {
+	asm volatile ("cpsie i" : : : "memory");
+}
+
+/*
  * Nested Vectored Interrupt Controller (NVIC)
  */
+typedef enum {
+	IRQN_PENDSV = -2,
+	IRQN_SYSTICK = -1,
+} IRQN;
+
 struct nvic {
 	volatile uint32_t iser[8]; // Interrupt Set Enable Register
 	volatile uint32_t reserved0[24];
@@ -23,7 +39,7 @@ struct nvic {
 
 #define NVIC_PRIO_BITS 4
 
-void nvic_setPriotity(int irq, uint32_t priority);
+void nvic_set_priority(IRQN irqn, uint32_t priority);
 
 /*
  * System Control Block (SCB)
@@ -36,9 +52,13 @@ struct scb {
 	volatile uint32_t scr; // System Control Register
 	volatile uint32_t ccr; // Configuration Control Register
 	volatile uint8_t shp[12]; // System Handlers Priority Registers
+	volatile uint32_t shcsr; // System Handler Control and State Register
+	volatile uint32_t cfsr; // Configurable Fault Status Register
 };
 
 #define SCB ((struct scb*) 0xE000ED00)
+
+#define SCB_ICSR_PENDSVSET (1 << 28)
 
 /*
  * SYSTICK
@@ -92,18 +112,18 @@ struct rcc {
 #define RCC_CFGR_PLLMULL9 (7 << 18)
 
 // APE2
-#define RCC_GPIOA_ENABLE 0x04
-#define RCC_GPIOB_ENABLE 0x08
-#define RCC_GPIOC_ENABLE 0x10
-#define RCC_TIMER1_ENABLE 0x0800
-#define RCC_UART1_ENABLE 0x4000
+#define RCC_APE2_GPIOA_ENABLE 0x04
+#define RCC_APE2_GPIOB_ENABLE 0x08
+#define RCC_APE2_GPIOC_ENABLE 0x10
+#define RCC_APE2_TIMER1_ENABLE 0x0800
+#define RCC_APE2_UART1_ENABLE 0x4000
 
 // APE1
-#define RCC_TIMER2_ENABLE 0x0001
-#define RCC_TIMER3_ENABLE 0x0002
-#define RCC_TIMER4_ENABLE 0x0004
-#define RCC_UART2_ENABLE 0x20000
-#define RCC_UART3_ENABLE 0x40000
+#define RCC_APE1_TIMER2_ENABLE 0x0001
+#define RCC_APE1_TIMER3_ENABLE 0x0002
+#define RCC_APE1_TIMER4_ENABLE 0x0004
+#define RCC_APE1_UART2_ENABLE 0x20000
+#define RCC_APE1_UART3_ENABLE 0x40000
 
 void rcc_init(void);
 

@@ -5,10 +5,10 @@
 /*
  * NVIC
  */
-void nvic_setPriotity(int irq, uint32_t priority) {
-	if (irq >= 0) {
+void nvic_set_priority(IRQN irqn, uint32_t priority) {
+	if (irqn >= 0) {
 	} else {
-		SCB->shp[(((uint32_t) irq) & 0xFUL) - 4UL] = (uint8_t)((priority << (8U - NVIC_PRIO_BITS)) & (uint32_t) 0xFFUL);
+		SCB->shp[(((uint32_t) irqn) & 0xF) - 4] = (uint8_t)((priority << (8 - NVIC_PRIO_BITS)) & (uint32_t) 0xFF);
 	}
 }
 
@@ -38,9 +38,9 @@ void rcc_init(void) {
  */
 void gpio_init(struct gpio* gpio) {
 	switch ((uint32_t) gpio) {
-		case (uint32_t) GPIOA: RCC->ape2 |= RCC_GPIOA_ENABLE; break;
-		case (uint32_t) GPIOB: RCC->ape2 |= RCC_GPIOB_ENABLE; break;
-		case (uint32_t) GPIOC: RCC->ape2 |= RCC_GPIOC_ENABLE; break;
+		case (uint32_t) GPIOA: RCC->ape2 |= RCC_APE2_GPIOA_ENABLE; break;
+		case (uint32_t) GPIOB: RCC->ape2 |= RCC_APE2_GPIOB_ENABLE; break;
+		case (uint32_t) GPIOC: RCC->ape2 |= RCC_APE2_GPIOC_ENABLE; break;
 	}
 }
 
@@ -65,7 +65,7 @@ void gpio_off(struct gpio* gpio, int pin) {
 void uart_init(struct uart* uart, int baud) {
 	switch ((uint32_t) uart) {
 		case (uint32_t) UART1:
-			RCC->ape2 |= RCC_UART1_ENABLE;
+			RCC->ape2 |= RCC_APE2_UART1_ENABLE;
 			gpio_init(GPIOA);
 			gpio_mode(GPIOA, 9, GPIO_MODE_OUTPUT_50M | GPIO_MODE_ALT_PUSH_PULL);
 			break;
