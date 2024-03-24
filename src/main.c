@@ -1,5 +1,5 @@
-#include "cm3.h"
 #include "miros.h"
+#include "stdio.h"
 
 Semaphore semaphore;
 
@@ -8,12 +8,12 @@ Thread thread1_thread;
 void thread1_main(void) {
 	for (int count = 0; count < 500; count++) {
 		semaphore_wait(&semaphore);
-		uart_printf(UART1, "Thread 1: %d\n", count);
+		printf("Thread 1: %d\n", count);
 		semaphore_signal(&semaphore);
 		os_yield();
 	}
 	semaphore_wait(&semaphore);
-	uart_printf(UART1, "Thread 1: goodbye!\n");
+	printf("Thread 1: goodbye!\n");
 	semaphore_signal(&semaphore);
 }
 
@@ -22,12 +22,12 @@ Thread thread2_thread;
 void thread2_main(void) {
 	for (int count = 0; count < 525; count++) {
 		semaphore_wait(&semaphore);
-		uart_printf(UART1, "Thread 2: %d\n", count);
+		printf("Thread 2: %d\n", count);
 		semaphore_signal(&semaphore);
 		os_yield();
 	}
 	semaphore_wait(&semaphore);
-	uart_printf(UART1, "Thread 2: goodbye!\n");
+	printf("Thread 2: goodbye!\n");
 	semaphore_signal(&semaphore);
 }
 

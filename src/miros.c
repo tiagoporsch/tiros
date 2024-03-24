@@ -4,6 +4,7 @@
 
 #include "cm3.h"
 #include "qassert.h"
+#include "stdio.h"
 
 Q_DEFINE_THIS_FILE
 
@@ -50,8 +51,8 @@ void os_init(void) {
 
 void os_run(void) {
 	rcc_init();
-	uart_init(UART1, 115200);
-	systick_init(RCC_SYS_CLOCK / OS_ONE_SECOND);
+	usart_init(USART1, 72e6 / 115200);
+	systick_init(72e6 / OS_ONE_SECOND);
 	nvic_set_priority(IRQN_SYSTICK, 0x00);
 	__disable_irq();
 	os_sched();
@@ -159,8 +160,8 @@ void semaphore_signal(Semaphore* semaphore) {
  */
 void assert_handler(const char* module, int line) {
 	rcc_init();
-	uart_init(UART1, 115200);
-	uart_printf(UART1, "*** ASSERT AT %s:%d FAILED ***\n", module, line);
+	usart_init(USART1, 115200);
+	printf("*** ASSERT AT %s:%d FAILED ***\n", module, line);
 	for (;;);
 }
 

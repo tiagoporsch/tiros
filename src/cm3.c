@@ -1,9 +1,7 @@
 #include "cm3.h"
 
-#include <stdarg.h>
-
 /*
- * NVIC
+ * Nested vectored interrupt controller (NVIC)
  */
 void nvic_set_priority(IRQN irqn, uint32_t priority) {
 	if (irqn >= 0) {
@@ -13,139 +11,67 @@ void nvic_set_priority(IRQN irqn, uint32_t priority) {
 }
 
 /*
- * SYSTICK
+ * SysTick
  */
 void systick_init(uint32_t ticks) {
-	SYSTICK->load = ticks - 1;
-	SYSTICK->val = 0UL;
-	SYSTICK->csr = SYSTICK_ENABLE | SYSTICK_TICKINT | SYSTICK_CLKSOURCE;
+	SYSTICK->rvr = ticks - 1;
+	SYSTICK->cvr = 0;
+	SYSTICK->csr = SYSTICK_CSR_ENABLE | SYSTICK_CSR_TICKINT | SYSTICK_CSR_CLKSOURCE;
 }
 
 /*
- * RCC
+ * Reset and clock control (RCC)
  */
 void rcc_init(void) {
 	// Configure the clock to 72 MHz
-	RCC->cfgr = RCC_CFGR_PLLSRC | RCC_CFGR_PLLMULL9 | RCC_CFGR_SW_HSI | RCC_CFGR_PPRE1_2;
-	RCC->cr = RCC_CR_HSION | RCC_CR_HSITRIM | RCC_CR_HSEON | RCC_CR_PLLON;
+	RCC->cfgr = RCC_CFGR_PLLSRC | RCC_CFGR_PLLMULL(7) | RCC_CFGR_SW(0b00) | RCC_CFGR_PPRE1(0b100);
+	RCC->cr = RCC_CR_HSION | RCC_CR_HSITRIM(16) | RCC_CR_HSEON | RCC_CR_PLLON;
 	while (!(RCC->cr & RCC_CR_PLLRDY));
-	*((volatile uint32_t*) 0x40022000) = 0x12;
-	RCC->cfgr = RCC_CFGR_PLLSRC | RCC_CFGR_PLLMULL9 | RCC_CFGR_SW_PLL | RCC_CFGR_PPRE1_2;
+	FLASH->acr = FLASH_ACR_LATENCY(0b010) | FLASH_ACR_PRFTBE;
+	RCC->cfgr = RCC_CFGR_PLLSRC | RCC_CFGR_PLLMULL(7) | RCC_CFGR_SW(0b10) | RCC_CFGR_PPRE1(0b100);
 }
 
 /*
- * GPIO
+ * General purpose input output (GPIO)
  */
 void gpio_init(struct gpio* gpio) {
 	switch ((uint32_t) gpio) {
-		case (uint32_t) GPIOA: RCC->ape2 |= RCC_APE2_GPIOA_ENABLE; break;
-		case (uint32_t) GPIOB: RCC->ape2 |= RCC_APE2_GPIOB_ENABLE; break;
-		case (uint32_t) GPIOC: RCC->ape2 |= RCC_APE2_GPIOC_ENABLE; break;
+		case (uint32_t) GPIOA: RCC->apb2enr |= RCC_APB2ENR_IOPAEN; break;
+		case (uint32_t) GPIOB: RCC->apb2enr |= RCC_APB2ENR_IOPBEN; break;
+		case (uint32_t) GPIOC: RCC->apb2enr |= RCC_APB2ENR_IOPCEN; break;
 	}
 }
 
-void gpio_mode(struct gpio* gpio, int pin, int mode) {
+void gpio_configure(struct gpio* gpio, int pin, int mode, int configuration) {
 	int reg = pin / 8;
-	int shift = (pin % 8) * 4;
-	int conf = gpio->cr[reg] & ~(0xf << shift);
-	gpio->cr[reg] = conf | (mode << shift);
-}
-
-void gpio_on(struct gpio* gpio, int pin) {
-	gpio->bsrrh |= 1 << pin;
-}
-
-void gpio_off(struct gpio* gpio, int pin) {
-	gpio->bsrrl |= 1 << pin;
+	int base = (pin % 8) * 4;
+	gpio->cr[reg] = (gpio->cr[reg] & ~(0xF << base)) | (mode << base) | (configuration << base << 2);
 }
 
 /*
- * UART
+ * Universal synchronous asynchronous receiver transmitter (USART)
  */
-void uart_init(struct uart* uart, int baud) {
-	switch ((uint32_t) uart) {
-		case (uint32_t) UART1:
-			RCC->ape2 |= RCC_APE2_UART1_ENABLE;
-			gpio_init(GPIOA);
-			gpio_mode(GPIOA, 9, GPIO_MODE_OUTPUT_50M | GPIO_MODE_ALT_PUSH_PULL);
+void usart_init(struct usart* usart, uint32_t brr) {
+	switch ((uint32_t) usart) {
+		case (uint32_t) USART1:
+			RCC->apb2enr |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_USART1EN;
+			gpio_configure(GPIOA, 9, GPIO_CR_MODE_OUTPUT_50M, GPIO_CR_CNF_OUTPUT_ALT_PUSH_PULL);
+			gpio_configure(GPIOA, 10, GPIO_CR_MODE_INPUT, GPIO_CR_CNF_INPUT_FLOATING);
 			break;
 	}
-	uart->cr1 = 0x340C; // 1 start bit, even parity
-	uart->cr2 = 0;
-	uart->cr3 = 0;
-	uart->gtp = 0;
-	uart->baud = RCC_SYS_CLOCK / baud;
+	usart->cr1 = USART_CR1_RE | USART_CR1_TE | USART_CR1_PCE | USART_CR1_M | USART_CR1_UE;
+	usart->cr2 = 0;
+	usart->cr3 = 0;
+	usart->gtpr = 0;
+	usart->brr = brr;
 }
 
-void uart_putc(struct uart* uart, int c) {
-	if (c == '\n')
-		uart_putc(uart, '\r');
-	while (!(uart->status & UART_TXE));
-	uart->data = c;
+void usart_write(struct usart* usart, char c) {
+	while (!(usart->sr & USART_SR_TXE));
+	usart->dr = c;
 }
 
-void uart_puts(struct uart* uart, const char* s) {
-	while (*s)
-		uart_putc(uart, *s++);
-}
-
-static const char* itoa(int i, int base, int pad, char padchar) {
-	static const char* repr = "0123456789ABCDEF";
-	static char buf[33] = { 0 };
-	char* ptr = &buf[32];
-	*ptr = 0;
-	do {
-		*--ptr = repr[i % base];
-		if (pad) pad--;
-		i /= base;
-	} while (i != 0);
-	while (pad--) *--ptr = padchar;
-	return ptr;
-}
-
-void uart_printf(struct uart* uart, const char* format, ...) {
-	va_list args;
-	va_start(args, format);
-	int pad = 0;
-	char padchar = ' ';
-	while (*format) {
-		if (*format == '%' || pad != 0) {
-			if (*format == '%')
-				format++;
-			if (*format == '%') {
-				uart_putc(uart, (char) va_arg(args, int));
-				format++;
-			} else if (*format == 's') {
-				uart_puts(uart, va_arg(args, char*));
-				format++;
-			} else if (*format == 'd') {
-				int number = va_arg(args, int);
-				if (number < 0) {
-					number = -number;
-					uart_putc(uart, '-');
-				}
-				uart_puts(uart, itoa(number, 10, pad, padchar));
-				pad = 0;
-				format++;
-			} else if (*format == 'x') {
-				uart_puts(uart, itoa(va_arg(args, int), 16, pad, padchar));
-				pad = 0;
-				format++;
-			} else if (*format >= '0' && *format <= '9') {
-				if (*format == '0') {
-					padchar = '0';
-					format++;
-				} else {
-					padchar = ' ';
-				}
-				while (*format >= '0' && *format <= '9') {
-					pad *= 10;
-					pad += (*format++ - '0');
-				}
-			}
-		} else {
-			uart_putc(uart, *format++);
-		}
-	}
-	va_end(args);
+char usart_read(struct usart* usart) {
+	while (!(usart->sr & USART_SR_RXNE));
+	return usart->dr;
 }
