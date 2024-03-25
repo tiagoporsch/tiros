@@ -2,28 +2,26 @@
 
 #include <stdint.h>
 
-#include "cm3.h"
-#include "qassert.h"
-#include "stdio.h"
-
-Q_DEFINE_THIS_FILE
+#include "std.h"
+#include "stm32.h"
 
 #define LOG2(x) (32 - __builtin_clz(x))
+#define DIMENSION(x) (sizeof(x) / sizeof(x[0]))
 
-static Thread* os_threads[32 + 1]; // array of threads started so far
-static Thread* volatile os_current; // pointer to the current thread
-static Thread* volatile os_next; // pointer to the next thread to run
+static thread_t* os_threads[1 + 32]; // array of threads started so far
+static thread_t* volatile os_current; // pointer to the current thread
+static thread_t* volatile os_next; // pointer to the next thread to run
 static uint32_t os_ready; // bitmask of threads that are ready to run
 static uint32_t os_delayed; // bitmask of threads that are delayed
 
 static uint32_t idle_stack[40];
-static Thread idle_thread;
+static thread_t idle_thread;
 static void idle_main(void) {
 	for (;;);
 }
 
 static void os_sched(void) {
-	Thread* next = os_threads[LOG2(os_ready)];
+	thread_t* next = os_threads[LOG2(os_ready)];
 	if (next != os_current) {
 		os_next = next;
 		SCB->icsr |= SCB_ICSR_PENDSVSET;
@@ -33,8 +31,8 @@ static void os_sched(void) {
 static void os_tick(void) {
 	uint32_t workingSet = os_delayed;
 	while (workingSet != 0) {
-		Thread* thread = os_threads[LOG2(workingSet)];
-		Q_ASSERT((thread != (Thread*) 0) && (thread->timeout != 0));
+		thread_t* thread = os_threads[LOG2(workingSet)];
+		OS_ASSERT((thread != (thread_t*) 0) && (thread->timeout != 0));
 		uint32_t bit = (1 << (thread->priority - 1));
 		if (--thread->timeout == 0) {
 			os_ready |= bit;
@@ -57,7 +55,7 @@ void os_run(void) {
 	__disable_irq();
 	os_sched();
 	__enable_irq();
-	Q_ERROR();
+	OS_ERROR();
 }
 
 void os_yield(void) {
@@ -71,7 +69,7 @@ void os_yield(void) {
 
 void os_delay(uint32_t ticks) {
 	__disable_irq();
-	Q_ASSERT(os_current != os_threads[0]);
+	OS_ASSERT(os_current != os_threads[0]);
 	os_current->timeout = ticks;
 	uint32_t bit = (1 << (os_current->priority - 1));
 	os_ready &= ~bit;
@@ -82,9 +80,10 @@ void os_delay(uint32_t ticks) {
 
 void os_exit(void) {
 	__disable_irq();
+	OS_ASSERT(os_current != os_threads[0]);
 	uint32_t bit = (1 << (os_current->priority - 1));
 	os_ready &= ~bit;
-	os_threads[os_current->priority] = (Thread*) 0;
+	os_threads[os_current->priority] = (thread_t*) 0;
 	os_sched();
 	__enable_irq();
 }
@@ -92,9 +91,9 @@ void os_exit(void) {
 /*
  * Thread
  */
-void thread_init(Thread* thread, uint8_t priority, void (*handler)(), void* stack, uint32_t stackSize) {
+void thread_init(thread_t* thread, uint8_t priority, void (*handler)(), void* stack, uint32_t stackSize) {
 	// Priority must be in range and the priority level must be unused
-	Q_ASSERT((priority < Q_DIM(os_threads)) && (os_threads[priority] == (Thread*) 0));
+	OS_ASSERT((priority < DIMENSION(os_threads)) && (os_threads[priority] == (thread_t*) 0));
 
 	// Round down the stack top to the 8-byte boundary
 	// NOTE: ARM Cortex-M stack grows down from hi -> low memory
@@ -135,11 +134,11 @@ void thread_init(Thread* thread, uint8_t priority, void (*handler)(), void* stac
 /*
  * Semaphore
  */
-void semaphore_init(Semaphore* semaphore, uint32_t value) {
+void semaphore_init(semaphore_t* semaphore, uint32_t value) {
 	*semaphore = value;
 }
 
-void semaphore_wait(Semaphore* semaphore) {
+void semaphore_wait(semaphore_t* semaphore) {
 	__disable_irq();
 	while (*semaphore == 0) {
 		os_yield();
@@ -149,7 +148,7 @@ void semaphore_wait(Semaphore* semaphore) {
 	__enable_irq();
 }
 
-void semaphore_signal(Semaphore* semaphore) {
+void semaphore_signal(semaphore_t* semaphore) {
 	__disable_irq();
 	(*semaphore)++;
 	__enable_irq();
@@ -158,10 +157,11 @@ void semaphore_signal(Semaphore* semaphore) {
 /*
  * Handlers
  */
+__attribute__((weak))
 void assert_handler(const char* module, int line) {
 	rcc_init();
 	usart_init(USART1, 115200);
-	printf("*** ASSERT AT %s:%d FAILED ***\n", module, line);
+	std_printf("ASSERT AT %s:%d FAILED. HALTING\n", module, line);
 	for (;;);
 }
 
@@ -172,7 +172,8 @@ void systick_handler(void) {
 	__enable_irq();
 }
 
-__attribute__ ((naked)) void pendsv_handler(void) {
+__attribute__ ((naked))
+void pendsv_handler(void) {
 	asm volatile (
 		// __disable_irq();
 		"  cpsid i\n"

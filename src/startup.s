@@ -4,16 +4,16 @@
 .thumb
 
 .section .isr_vector
-.word _estack		/* stack top address */
-.word reset_handler	/* 1 Reset */
-.word default_handler	/* 2 NMI */
-.word default_handler	/* 3 Hard Fault */
-.word default_handler	/* 4 MM Fault */
-.word default_handler	/* 5 Bus Fault */
-.word default_handler	/* 6 Usage Fault */
-.word 0			/* 7 RESERVED */
-.word 0			/* 8 RESERVED */
-.word 0			/* 9 RESERVED*/
+.word _estack		/* Stack top address */
+.word reset_handler	/*  1 Reset */
+.word default_handler	/*  2 NMI */
+.word default_handler	/*  3 Hard Fault */
+.word default_handler	/*  4 MM Fault */
+.word default_handler	/*  5 Bus Fault */
+.word default_handler	/*  6 Usage Fault */
+.word 0			/*  7 RESERVED */
+.word 0			/*  8 RESERVED */
+.word 0			/*  9 RESERVED*/
 .word 0			/* 10 RESERVED */
 .word default_handler	/* 11 SV call */
 .word default_handler	/* 12 Debug reserved */

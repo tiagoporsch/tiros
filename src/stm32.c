@@ -1,8 +1,9 @@
-#include "cm3.h"
+#include "stm32.h"
 
 /*
- * Nested vectored interrupt controller (NVIC)
+ * Cortex-M3
  */
+// Nested vectored interrupt controller (NVIC)
 void nvic_set_priority(IRQN irqn, uint32_t priority) {
 	if (irqn >= 0) {
 	} else {
@@ -10,9 +11,7 @@ void nvic_set_priority(IRQN irqn, uint32_t priority) {
 	}
 }
 
-/*
- * SysTick
- */
+// SysTick
 void systick_init(uint32_t ticks) {
 	SYSTICK->rvr = ticks - 1;
 	SYSTICK->cvr = 0;
@@ -20,8 +19,9 @@ void systick_init(uint32_t ticks) {
 }
 
 /*
- * Reset and clock control (RCC)
+ * STM32F103
  */
+// Reset and clock control (RCC)
 void rcc_init(void) {
 	// Configure the clock to 72 MHz
 	RCC->cfgr = RCC_CFGR_PLLSRC | RCC_CFGR_PLLMULL(7) | RCC_CFGR_SW(0b00) | RCC_CFGR_PPRE1(0b100);
@@ -31,9 +31,7 @@ void rcc_init(void) {
 	RCC->cfgr = RCC_CFGR_PLLSRC | RCC_CFGR_PLLMULL(7) | RCC_CFGR_SW(0b10) | RCC_CFGR_PPRE1(0b100);
 }
 
-/*
- * General purpose input output (GPIO)
- */
+// General purpose input output (GPIO)
 void gpio_init(struct gpio* gpio) {
 	switch ((uint32_t) gpio) {
 		case (uint32_t) GPIOA: RCC->apb2enr |= RCC_APB2ENR_IOPAEN; break;
@@ -42,15 +40,13 @@ void gpio_init(struct gpio* gpio) {
 	}
 }
 
-void gpio_configure(struct gpio* gpio, int pin, int mode, int configuration) {
+void gpio_configure(struct gpio* gpio, int pin, int mode, int cnf) {
 	int reg = pin / 8;
 	int base = (pin % 8) * 4;
-	gpio->cr[reg] = (gpio->cr[reg] & ~(0xF << base)) | (mode << base) | (configuration << base << 2);
+	gpio->cr[reg] = (gpio->cr[reg] & ~(0b1111 << base)) | (mode << base) | (cnf << base << 2);
 }
 
-/*
- * Universal synchronous asynchronous receiver transmitter (USART)
- */
+// Universal synchronous asynchronous receiver transmitter (USART)
 void usart_init(struct usart* usart, uint32_t brr) {
 	switch ((uint32_t) usart) {
 		case (uint32_t) USART1:

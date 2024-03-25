@@ -1,8 +1,8 @@
-_estack = ORIGIN(RAM) + LENGTH(RAM);
+_estack = ORIGIN(SRAM) + LENGTH(SRAM);
 
 MEMORY {
 	FLASH (RX) : ORIGIN = 0x08000000, LENGTH = 64K
-	RAM (RWX)  : ORIGIN = 0x20000000, LENGTH = 20K
+	SRAM (RWX) : ORIGIN = 0x20000000, LENGTH = 20K
 }
 
 SECTIONS {
@@ -14,5 +14,5 @@ SECTIONS {
 		_sbss = .;
 		*(.bss*)
 		_ebss = .;
-	} > RAM
+	} > SRAM
 }

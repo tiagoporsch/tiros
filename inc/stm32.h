@@ -5,7 +5,6 @@
 /*
  * ARMv7
  */
-
 __attribute__((always_inline)) static inline void __disable_irq(void) {
 	asm volatile ("cpsid i" : : : "memory");
 }
@@ -17,10 +16,7 @@ __attribute__((always_inline)) static inline void __enable_irq(void) {
 /*
  * Cortex-M3
  */
-
-/*
- * Nested Vectored Interrupt Controller (NVIC)
- */
+// Nested vectored interrupt controller (NVIC)
 typedef enum {
 	IRQN_PENDSV = -2,
 	IRQN_SYSTICK = -1,
@@ -30,9 +26,7 @@ typedef enum {
 
 void nvic_set_priority(IRQN irqn, uint32_t priority);
 
-/*
- * System Control Block (SCB)
- */
+// System control block (SCB)
 struct scb {
 	volatile uint32_t cpuid; // CPUID Base Register
 	volatile uint32_t icsr; // Interrupt Control and State Register
@@ -49,9 +43,7 @@ struct scb {
 
 #define SCB_ICSR_PENDSVSET (1 << 28)
 
-/*
- * SysTick
- */
+// SysTick
 struct systick {
 	volatile uint32_t csr; // Control and Status Register
 	volatile uint32_t rvr; // Reload Value Register
@@ -71,10 +63,7 @@ void systick_init(uint32_t ticks);
 /*
  * STM32F103
  */
-
-/*
- * Flash interface registers (FLASH)
- */
+// Flash interface registers (FLASH)
 struct flash {
 	volatile uint32_t acr; // Access control register
 	volatile uint32_t keyr; // Key register
@@ -85,12 +74,6 @@ struct flash {
 	uint32_t reserved0;
 	volatile uint32_t obr; // Option byte register
 	volatile uint32_t wrpr; // Write protection register
-	uint32_t reserved1[8];
-	volatile uint32_t keyr2; // Key register 2
-	uint32_t reserved2;
-	volatile uint32_t sr2; // Status register 2
-	volatile uint32_t cr2; // Control register 2
-	volatile uint32_t ar2; // Address register 2
 };
 
 #define FLASH ((struct flash*) 0x40022000)
@@ -98,9 +81,7 @@ struct flash {
 #define FLASH_ACR_LATENCY(x) ((x) << 0)
 #define FLASH_ACR_PRFTBE (1 << 4)
 
-/*
- * Reset and Clock Control (RCC)
- */
+// Reset and Clock Control (RCC)
 struct rcc {
 	volatile uint32_t cr; // Clock control register
 	volatile uint32_t cfgr; // Clock configuration register
@@ -134,9 +115,7 @@ struct rcc {
 
 void rcc_init(void);
 
-/*
- * General purpose input output (GPIO)
- */
+// General purpose input output (GPIO)
 struct gpio {
 	volatile uint32_t cr[2]; // Port configuration register
 	volatile uint32_t idr; // Port input data register
@@ -166,9 +145,7 @@ struct gpio {
 void gpio_init(struct gpio* gpio);
 void gpio_configure(struct gpio* gpio, int pin, int mode, int cnf);
 
-/*
- * Universal synchronous asynchronous receiver transmitter (USART)
- */
+// Universal synchronous asynchronous receiver transmitter (USART)
 struct usart {
 	volatile uint32_t sr; // Status register
 	volatile uint32_t dr; // Data register

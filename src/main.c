@@ -1,37 +1,37 @@
 #include "miros.h"
-#include "stdio.h"
+#include "std.h"
 
-Semaphore semaphore;
+semaphore_t semaphore;
 
 uint32_t thread1_stack[40];
-Thread thread1_thread;
+thread_t thread1_thread;
 void thread1_main(void) {
 	for (int count = 0; count < 500; count++) {
 		semaphore_wait(&semaphore);
-		printf("Thread 1: %d\n", count);
+		std_printf("Thread 1: %d\n", count);
 		semaphore_signal(&semaphore);
 		os_yield();
 	}
 	semaphore_wait(&semaphore);
-	printf("Thread 1: goodbye!\n");
+	std_printf("Thread 1: goodbye!\n");
 	semaphore_signal(&semaphore);
 }
 
 uint32_t thread2_stack[40];
-Thread thread2_thread;
+thread_t thread2_thread;
 void thread2_main(void) {
 	for (int count = 0; count < 525; count++) {
 		semaphore_wait(&semaphore);
-		printf("Thread 2: %d\n", count);
+		std_printf("Thread 2: %d\n", count);
 		semaphore_signal(&semaphore);
 		os_yield();
 	}
 	semaphore_wait(&semaphore);
-	printf("Thread 2: goodbye!\n");
+	std_printf("Thread 2: goodbye!\n");
 	semaphore_signal(&semaphore);
 }
 
-int main(void) {
+void main(void) {
 	os_init();
 
 	semaphore_init(&semaphore, 1);
