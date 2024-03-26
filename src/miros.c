@@ -25,6 +25,7 @@ static void os_sched(void) {
 	if (next != os_current) {
 		os_next = next;
 		SCB->icsr |= SCB_ICSR_PENDSVSET;
+		asm volatile ("dsb");
 	}
 }
 
@@ -49,7 +50,6 @@ void os_init(void) {
 
 void os_run(void) {
 	rcc_init();
-	usart_init(USART1, 72e6 / 115200);
 	systick_init(72e6 / OS_ONE_SECOND);
 	nvic_set_priority(IRQN_SYSTICK, 0x00);
 	__disable_irq();
@@ -93,7 +93,11 @@ void os_exit(void) {
  */
 void thread_init(thread_t* thread, uint8_t priority, void (*handler)(), void* stack, uint32_t stackSize) {
 	// Priority must be in range and the priority level must be unused
-	OS_ASSERT((priority < DIMENSION(os_threads)) && (os_threads[priority] == (thread_t*) 0));
+	OS_ASSERT(thread);
+	OS_ASSERT(handler);
+	OS_ASSERT(stack);
+	OS_ASSERT(priority < DIMENSION(os_threads));
+	OS_ASSERT(!os_threads[priority]);
 
 	// Round down the stack top to the 8-byte boundary
 	// NOTE: ARM Cortex-M stack grows down from hi -> low memory
@@ -135,22 +139,27 @@ void thread_init(thread_t* thread, uint8_t priority, void (*handler)(), void* st
  * Semaphore
  */
 void semaphore_init(semaphore_t* semaphore, uint32_t value) {
-	*semaphore = value;
+	OS_ASSERT(semaphore);
+	semaphore->value = value;
+	semaphore->max = value;
 }
 
 void semaphore_wait(semaphore_t* semaphore) {
+	OS_ASSERT(semaphore);
 	__disable_irq();
-	while (*semaphore == 0) {
+	while (semaphore->value == 0) {
 		os_yield();
 		__disable_irq();
 	}
-	(*semaphore)--;
+	semaphore->value--;
 	__enable_irq();
 }
 
 void semaphore_signal(semaphore_t* semaphore) {
+	OS_ASSERT(semaphore);
 	__disable_irq();
-	(*semaphore)++;
+	if (semaphore->value < semaphore->max)
+		semaphore->value++;
 	__enable_irq();
 }
 
