@@ -26,11 +26,11 @@ void assert_handler(const char* const file, int line);
  * Semaphore
  */
 typedef struct {
-	uint32_t value;
 	uint32_t max;
+	uint32_t value;
 } semaphore_t;
 
-void semaphore_init(semaphore_t* semaphore, uint32_t value);
+void semaphore_init(semaphore_t* semaphore, uint32_t max, uint32_t value);
 void semaphore_wait(semaphore_t* semaphore);
 void semaphore_signal(semaphore_t* semaphore);
 

@@ -138,10 +138,10 @@ void thread_init(thread_t* thread, uint8_t priority, void (*handler)(), void* st
 /*
  * Semaphore
  */
-void semaphore_init(semaphore_t* semaphore, uint32_t value) {
+void semaphore_init(semaphore_t* semaphore, uint32_t max, uint32_t value) {
 	OS_ASSERT(semaphore);
+	semaphore->max = max;
 	semaphore->value = value;
-	semaphore->max = value;
 }
 
 void semaphore_wait(semaphore_t* semaphore) {
