@@ -1,183 +1,191 @@
 #include "miros.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "std.h"
 #include "stm32.h"
 
-#define LOG2(x) (32 - __builtin_clz(x))
-#define DIMENSION(x) (sizeof(x) / sizeof(x[0]))
+#define OS_MAX_THREADS 32
+static thread_t* os_threads[OS_MAX_THREADS];
+static thread_t* os_thread_current;
+static thread_t* os_thread_next;
+static uint32_t os_ticks;
 
-static thread_t* os_threads[1 + 32]; // array of threads started so far
-static thread_t* volatile os_current; // pointer to the current thread
-static thread_t* volatile os_next; // pointer to the next thread to run
-static uint32_t os_ready; // bitmask of threads that are ready to run
-static uint32_t os_delayed; // bitmask of threads that are delayed
-
-static uint32_t idle_stack[40];
+static uint32_t idle_stack[128];
 static thread_t idle_thread;
 static void idle_main(void) {
-	for (;;);
+	while (true) {}
 }
 
-static void os_sched(void) {
-	thread_t* next = os_threads[LOG2(os_ready)];
-	if (next != os_current) {
-		os_next = next;
+static void os_schedule(void) {
+	os_thread_next = os_threads[0];
+	uint32_t earliest_absolute_deadline = UINT32_MAX;
+	for (size_t i = 1; i < OS_MAX_THREADS; i++) {
+		thread_t* thread = os_threads[i];
+		if (!thread || thread->activation_time > os_ticks || thread->delayed_until > os_ticks)
+			continue;
+		uint32_t absolute_deadline = thread->activation_time + thread->relative_deadline;
+		if (absolute_deadline < earliest_absolute_deadline) {
+			os_thread_next = thread;
+			earliest_absolute_deadline = absolute_deadline;
+		}
+	}
+	if (os_thread_next != os_thread_current) {
 		SCB->icsr |= SCB_ICSR_PENDSVSET;
 		asm volatile ("dsb");
 	}
 }
 
-static void os_tick(void) {
-	uint32_t workingSet = os_delayed;
-	while (workingSet != 0) {
-		thread_t* thread = os_threads[LOG2(workingSet)];
-		OS_ASSERT((thread != (thread_t*) 0) && (thread->timeout != 0));
-		uint32_t bit = (1 << (thread->priority - 1));
-		if (--thread->timeout == 0) {
-			os_ready |= bit;
-			os_delayed &= ~bit;
-		}
-		workingSet &= ~bit;
-	}
-}
-
 void os_init(void) {
 	nvic_set_priority(IRQN_PENDSV, 0xFF);
-	thread_init(&idle_thread, 0, &idle_main, idle_stack, sizeof(idle_stack));
+	thread_init(&idle_thread, idle_stack, sizeof(idle_stack), &idle_main, UINT32_MAX, UINT32_MAX);
+	os_ticks = 0;
 }
 
-void os_run(void) {
+void os_start(void) {
 	rcc_init();
-	systick_init(72e6 / OS_ONE_SECOND);
+	systick_init(72e6 / OS_SECONDS(1));
 	nvic_set_priority(IRQN_SYSTICK, 0x00);
 	__disable_irq();
-	os_sched();
+	os_schedule();
 	__enable_irq();
 	OS_ERROR();
 }
 
-void os_yield(void) {
+void os_delay(uint32_t ticks) {
 	__disable_irq();
-	uint32_t bit = (1 << (os_current->priority - 1));
-	os_ready &= ~bit;
-	os_sched();
-	os_ready |= bit;
+	os_thread_current->delayed_until = os_ticks + ticks;
+	os_schedule();
 	__enable_irq();
 }
 
-void os_delay(uint32_t ticks) {
-	__disable_irq();
-	OS_ASSERT(os_current != os_threads[0]);
-	os_current->timeout = ticks;
-	uint32_t bit = (1 << (os_current->priority - 1));
-	os_ready &= ~bit;
-	os_delayed |= bit;
-	os_sched();
-	__enable_irq();
+void os_yield(void) {
+	os_delay(1);
 }
 
 void os_exit(void) {
 	__disable_irq();
-	OS_ASSERT(os_current != os_threads[0]);
-	uint32_t bit = (1 << (os_current->priority - 1));
-	os_ready &= ~bit;
-	os_threads[os_current->priority] = (thread_t*) 0;
-	os_sched();
+	os_thread_current->activation_time += os_thread_current->period;
+	os_schedule();
 	__enable_irq();
+	asm volatile (
+		"  ldr lr, =os_exit\n"
+		"  ldr r1, =os_thread_current\n"
+		"  ldr r1, [r1, #0]\n"
+		"  ldr r1, [r1, #4]\n"
+		"  bx r1\n"
+	);
 }
 
 /*
  * Thread
  */
-void thread_init(thread_t* thread, uint8_t priority, void (*handler)(), void* stack, uint32_t stackSize) {
-	// Priority must be in range and the priority level must be unused
+void thread_init(thread_t* thread, void* stack, uint32_t stack_size, void (*entry_point)(), uint32_t relative_deadline, uint32_t period) {
 	OS_ASSERT(thread);
-	OS_ASSERT(handler);
 	OS_ASSERT(stack);
-	OS_ASSERT(priority < DIMENSION(os_threads));
-	OS_ASSERT(!os_threads[priority]);
+	OS_ASSERT(stack_size >= 32 * sizeof(int));
+	OS_ASSERT(entry_point);
 
-	// Round down the stack top to the 8-byte boundary
-	// NOTE: ARM Cortex-M stack grows down from hi -> low memory
-	uint32_t* sp = (uint32_t*) ((((uint32_t) stack + stackSize) / 8) * 8);
+	thread->stack_pointer = (uint32_t*) ((((uint32_t) stack + stack_size) / 8) * 8);
+	*(--thread->stack_pointer) = (1 << 24); // xPSR
+	*(--thread->stack_pointer) = (uint32_t) entry_point; // PC
+	*(--thread->stack_pointer) = (uint32_t) os_exit; // LR
+	*(--thread->stack_pointer) = 0x0000000C; // R12
+	*(--thread->stack_pointer) = 0x00000003; // R3
+	*(--thread->stack_pointer) = 0x00000002; // R2
+	*(--thread->stack_pointer) = 0x00000001; // R1
+	*(--thread->stack_pointer) = 0x00000000; // R0
+	*(--thread->stack_pointer) = 0x0000000B; // R11
+	*(--thread->stack_pointer) = 0x0000000A; // R10
+	*(--thread->stack_pointer) = 0x00000009; // R9
+	*(--thread->stack_pointer) = 0x00000008; // R8
+	*(--thread->stack_pointer) = 0x00000007; // R7
+	*(--thread->stack_pointer) = 0x00000006; // R6
+	*(--thread->stack_pointer) = 0x00000005; // R5
+	*(--thread->stack_pointer) = 0x00000004; // R4
 
-	*(--sp) = (1 << 24); // xPSR
-	*(--sp) = (uint32_t) handler; // PC
-	*(--sp) = (uint32_t) os_exit; // LR
-	*(--sp) = 0x0000000C; // R12
-	*(--sp) = 0x00000003; // R3
-	*(--sp) = 0x00000002; // R2
-	*(--sp) = 0x00000001; // R1
-	*(--sp) = 0x00000000; // R0
-	*(--sp) = 0x0000000B; // R11
-	*(--sp) = 0x0000000A; // R10
-	*(--sp) = 0x00000009; // R9
-	*(--sp) = 0x00000008; // R8
-	*(--sp) = 0x00000007; // R7
-	*(--sp) = 0x00000006; // R6
-	*(--sp) = 0x00000005; // R5
-	*(--sp) = 0x00000004; // R4
-	thread->sp = sp;
+	thread->entry_point = entry_point;
+	thread->relative_deadline = relative_deadline;
+	thread->period = period;
+	thread->activation_time = os_ticks;
+	thread->delayed_until = os_ticks;
 
-	// Pre-fill the unused part of the stack with 0xDEADBEEF
-	// Round up the bottom of the stack to the 8-byte boundary
-	uint32_t* stackEnd = (uint32_t*) (((((uint32_t) stack - 1) / 8) + 1) * 8);
-	for (sp = sp - 1U; sp >= stackEnd; --sp)
-		*sp = 0xDEADBEEF;
+	for (size_t i = 0; i < OS_MAX_THREADS; i++) {
+		if (os_threads[i] == NULL) {
+			os_threads[i] = thread;
+			return;
+		}
+	}
 
-	// Register the thread with the operating system
-	// And make it ready to run
-	thread->priority = priority;
-	os_threads[thread->priority] = thread;
-	if (thread->priority > 0)
-		os_ready |= (1 << (thread->priority - 1));
+	OS_ERROR();
 }
 
 /*
  * Semaphore
  */
-void semaphore_init(semaphore_t* semaphore, uint32_t max, uint32_t value) {
+void semaphore_init(semaphore_t* semaphore, uint32_t maximum_value, uint32_t starting_value) {
 	OS_ASSERT(semaphore);
-	semaphore->max = max;
-	semaphore->value = value;
+	semaphore->maximum_value = maximum_value;
+	semaphore->current_value = starting_value;
 }
 
 void semaphore_wait(semaphore_t* semaphore) {
 	OS_ASSERT(semaphore);
 	__disable_irq();
-	while (semaphore->value == 0) {
+	while (semaphore->current_value == 0) {
 		os_yield();
 		__disable_irq();
 	}
-	semaphore->value--;
+	semaphore->current_value--;
 	__enable_irq();
 }
 
 void semaphore_signal(semaphore_t* semaphore) {
 	OS_ASSERT(semaphore);
 	__disable_irq();
-	if (semaphore->value < semaphore->max)
-		semaphore->value++;
+	if (semaphore->current_value < semaphore->maximum_value)
+		semaphore->current_value++;
 	__enable_irq();
 }
 
 /*
  * Handlers
  */
-__attribute__((weak))
 void assert_handler(const char* module, int line) {
-	rcc_init();
-	usart_init(USART1, 115200);
-	std_printf("ASSERT AT %s:%d FAILED. HALTING\n", module, line);
-	for (;;);
+	std_printf("Assert %s:%d!\n", module, line);
+	while (true);
+}
+
+void nmi_handler(void) {
+	std_printf("NMI!\n");
+	while (true);
+}
+
+void hard_fault_handler(void) {
+	std_printf("Hard Fault!\n");
+	while (true);
+}
+
+void mm_fault_handler(void) {
+	std_printf("MM Fault!\n");
+	while (true);
+}
+
+void bus_fault_handler(void) {
+	std_printf("Bus Fault!\n");
+	while (true);
+}
+
+void usage_fault_handler(void) {
+	std_printf("Usage Fault!\n");
+	while (true);
 }
 
 void systick_handler(void) {
-	os_tick();
 	__disable_irq();
-	os_sched();
+	os_ticks++;
+	os_schedule();
 	__enable_irq();
 }
 
@@ -186,28 +194,28 @@ void pendsv_handler(void) {
 	asm volatile (
 		// __disable_irq();
 		"  cpsid i\n"
-		// if (os_current != (Thread*) 0) {
-		"  ldr r1, =os_current\n"
+		// if (os_thread_current != NULL) {
+		"  ldr r1, =os_thread_current\n"
 		"  ldr r1, [r1, #0]\n"
 		"  cbz r1, pendsv_restore\n"
-		//	 push registers r4-r11 on the stack
+		//	 push registers r4 to r11
 		"  push {r4-r11}\n"
-		//	 os_current->sp = sp;
-		"  ldr r1,=os_current\n"
-		"  ldr r1,[r1,#0x00]\n"
-		"  str sp,[r1,#0x00]\n"
+		//	 os_thread_current->stack_pointer = stack_pointer;
+		"  ldr r1, =os_thread_current\n"
+		"  ldr r1, [r1, #0]\n"
+		"  str sp, [r1, #0]\n"
 		// }
 		"pendsv_restore:\n"
-		// sp = os_next->sp;
-		"  ldr r1, =os_next\n"
+		// stack_pointer = os_thread_next->stack_pointer;
+		"  ldr r1, =os_thread_next\n"
 		"  ldr r1, [r1, #0]\n"
 		"  ldr sp, [r1, #0]\n"
-		// os_current = os_next;
-		"  ldr r1, =os_next\n"
+		// os_thread_current = os_thread_next;
+		"  ldr r1, =os_thread_next\n"
 		"  ldr r1, [r1, #0]\n"
-		"  ldr r2, =os_current\n"
+		"  ldr r2, =os_thread_current\n"
 		"  str r1, [r2, #0]\n"
-		// pop registers r4-r11
+		// pop registers r4 to r11
 		"  pop {r4-r11}\n"
 		// __enable_irq();
 		"  cpsie i\n"

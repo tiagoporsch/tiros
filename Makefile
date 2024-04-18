@@ -4,7 +4,7 @@ AS:=arm-none-eabi-as
 CC:=arm-none-eabi-gcc
 LD:=arm-none-eabi-ld.bfd
 
-CFLAGS:=-ffreestanding -Iinc -mcpu=cortex-m3 -mthumb -nostdlib -g -O2 -MD
+CFLAGS:=-ffreestanding -Iinc -mcpu=cortex-m3 -mthumb -nostdlib -g -MD
 LDFLAGS:=-Tlinker.ld
 
 OBJECTS:=$(patsubst src/%,bin/%.o,$(wildcard src/*.c src/*.s))

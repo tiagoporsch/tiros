@@ -4,22 +4,22 @@
 .thumb
 
 .section .isr_vector
-.word _estack		/* Stack top address */
-.word reset_handler	/*  1 Reset */
-.word default_handler	/*  2 NMI */
-.word default_handler	/*  3 Hard Fault */
-.word default_handler	/*  4 MM Fault */
-.word default_handler	/*  5 Bus Fault */
-.word default_handler	/*  6 Usage Fault */
-.word 0			/*  7 RESERVED */
-.word 0			/*  8 RESERVED */
-.word 0			/*  9 RESERVED*/
-.word 0			/* 10 RESERVED */
-.word default_handler	/* 11 SV call */
-.word default_handler	/* 12 Debug reserved */
-.word 0			/* 13 RESERVED */
-.word pendsv_handler	/* 14 PendSV */
-.word systick_handler	/* 15 SysTick */
+.word _estack			/* Stack top address */
+.word reset_handler		/*  1 Reset */
+.word nmi_handler		/*  2 NMI */
+.word hard_fault_handler	/*  3 Hard Fault */
+.word mm_fault_handler		/*  4 MM Fault */
+.word bus_fault_handler		/*  5 Bus Fault */
+.word usage_fault_handler	/*  6 Usage Fault */
+.word 0				/*  7 RESERVED */
+.word 0				/*  8 RESERVED */
+.word 0				/*  9 RESERVED*/
+.word 0				/* 10 RESERVED */
+.word default_handler		/* 11 SV call */
+.word default_handler		/* 12 Debug reserved */
+.word 0				/* 13 RESERVED */
+.word pendsv_handler		/* 14 PendSV */
+.word systick_handler		/* 15 SysTick */
 
 default_handler:
 	b default_handler
