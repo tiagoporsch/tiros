@@ -5,13 +5,15 @@
 uint32_t task1_stack[128];
 thread_t task1_thread;
 void task1_main(void) {
-	std_printf("task1\n");
+	static int value = 0;
+	std_printf("task1: %d\n", value++);
 }
 
 uint32_t task2_stack[128];
 thread_t task2_thread;
 void task2_main(void) {
-	std_printf("task2\n");
+	static int value = 0;
+	std_printf("task2: %d\n", value++);
 }
 
 void main(void) {

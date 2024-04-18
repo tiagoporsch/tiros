@@ -5,8 +5,7 @@
 /*
  * Operating system
  */
-#define OS_MILLISECONDS(ms) (ms)
-#define OS_SECONDS(s) (s * OS_MILLISECONDS(1000))
+#define OS_SECONDS(s) (s * 100)
 
 void os_init(void);
 void os_start(void);
@@ -43,7 +42,7 @@ typedef struct {
 	// If they are to be moved around, make sure to update the offsets in the
 	// os_exit() and pendsv_handler() functions.
 	uint32_t* stack_pointer;
-	void (*entry_point)();
+	void (*entry_point)(void);
 
 	uint32_t relative_deadline;
 	uint32_t period;
@@ -52,4 +51,4 @@ typedef struct {
 	uint32_t delayed_until;
 } thread_t;
 
-void thread_init(thread_t* thread, void* stack, uint32_t stack_size, void (*entry_point)(), uint32_t relative_deadline, uint32_t period);
+void thread_init(thread_t* thread, void* stack, uint32_t stack_size, void (*entry_point)(void), uint32_t relative_deadline, uint32_t period);

@@ -7,6 +7,7 @@
 #include "stm32.h"
 
 #define OS_MAX_THREADS 32
+
 static thread_t* os_threads[OS_MAX_THREADS];
 static thread_t* os_thread_current;
 static thread_t* os_thread_next;
@@ -21,7 +22,7 @@ static void idle_main(void) {
 static void os_schedule(void) {
 	os_thread_next = os_threads[0];
 	uint32_t earliest_absolute_deadline = UINT32_MAX;
-	for (size_t i = 1; i < OS_MAX_THREADS; i++) {
+	for (uint32_t i = 1; i < OS_MAX_THREADS; i++) {
 		thread_t* thread = os_threads[i];
 		if (!thread || thread->activation_time > os_ticks || thread->delayed_until > os_ticks)
 			continue;
@@ -39,7 +40,7 @@ static void os_schedule(void) {
 
 void os_init(void) {
 	nvic_set_priority(IRQN_PENDSV, 0xFF);
-	thread_init(&idle_thread, idle_stack, sizeof(idle_stack), &idle_main, UINT32_MAX, UINT32_MAX);
+	thread_init(&idle_thread, idle_stack, sizeof(idle_stack), &idle_main, UINT32_MAX, 0);
 	os_ticks = 0;
 }
 
@@ -66,7 +67,16 @@ void os_yield(void) {
 
 void os_exit(void) {
 	__disable_irq();
-	os_thread_current->activation_time += os_thread_current->period;
+	if (os_thread_current->period == 0) {
+		for (uint32_t i = 1; i < OS_MAX_THREADS; i++) {
+			if (os_threads[i] == os_thread_current) {
+				os_threads[i] = NULL;
+				break;
+			}
+		}
+	} else {
+		os_thread_current->activation_time += os_thread_current->period;
+	}
 	os_schedule();
 	__enable_irq();
 	asm volatile (
@@ -81,7 +91,7 @@ void os_exit(void) {
 /*
  * Thread
  */
-void thread_init(thread_t* thread, void* stack, uint32_t stack_size, void (*entry_point)(), uint32_t relative_deadline, uint32_t period) {
+void thread_init(thread_t* thread, void* stack, uint32_t stack_size, void (*entry_point)(void), uint32_t relative_deadline, uint32_t period) {
 	OS_ASSERT(thread);
 	OS_ASSERT(stack);
 	OS_ASSERT(stack_size >= 32 * sizeof(int));
@@ -111,7 +121,7 @@ void thread_init(thread_t* thread, void* stack, uint32_t stack_size, void (*entr
 	thread->activation_time = os_ticks;
 	thread->delayed_until = os_ticks;
 
-	for (size_t i = 0; i < OS_MAX_THREADS; i++) {
+	for (uint32_t i = 0; i < OS_MAX_THREADS; i++) {
 		if (os_threads[i] == NULL) {
 			os_threads[i] = thread;
 			return;
@@ -154,32 +164,32 @@ void semaphore_signal(semaphore_t* semaphore) {
  */
 void assert_handler(const char* module, int line) {
 	std_printf("Assert %s:%d!\n", module, line);
-	while (true);
+	while (true) {}
 }
 
 void nmi_handler(void) {
 	std_printf("NMI!\n");
-	while (true);
+	while (true) {}
 }
 
 void hard_fault_handler(void) {
 	std_printf("Hard Fault!\n");
-	while (true);
+	while (true) {}
 }
 
 void mm_fault_handler(void) {
 	std_printf("MM Fault!\n");
-	while (true);
+	while (true) {}
 }
 
 void bus_fault_handler(void) {
 	std_printf("Bus Fault!\n");
-	while (true);
+	while (true) {}
 }
 
 void usage_fault_handler(void) {
 	std_printf("Usage Fault!\n");
-	while (true);
+	while (true) {}
 }
 
 void systick_handler(void) {
@@ -200,13 +210,13 @@ void pendsv_handler(void) {
 		"  cbz r1, pendsv_restore\n"
 		//	 push registers r4 to r11
 		"  push {r4-r11}\n"
-		//	 os_thread_current->stack_pointer = stack_pointer;
+		//	 os_thread_current->stack_pointer = sp;
 		"  ldr r1, =os_thread_current\n"
 		"  ldr r1, [r1, #0]\n"
 		"  str sp, [r1, #0]\n"
 		// }
 		"pendsv_restore:\n"
-		// stack_pointer = os_thread_next->stack_pointer;
+		// sp = os_thread_next->stack_pointer;
 		"  ldr r1, =os_thread_next\n"
 		"  ldr r1, [r1, #0]\n"
 		"  ldr sp, [r1, #0]\n"
