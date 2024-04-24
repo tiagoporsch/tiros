@@ -4,7 +4,7 @@ AS:=arm-none-eabi-as
 CC:=arm-none-eabi-gcc
 LD:=arm-none-eabi-ld.bfd
 
-CFLAGS:=-ffreestanding -Iinc -mcpu=cortex-m3 -mthumb -nostdlib -g -MD
+CFLAGS:=-DOS_DEBUG_USART -Iinc -MD -fno-builtin -mcpu=cortex-m3 -mthumb -nostartfiles -nostdlib
 LDFLAGS:=-Tlinker.ld
 
 OBJECTS:=$(patsubst src/%,bin/%.o,$(wildcard src/*.c src/*.s))
@@ -29,6 +29,6 @@ monitor:
 	screen /dev/ttyUSB0 115200
 
 clean:
-	rm -fr bin/
+	rm -rf bin/
 
 -include $(OBJECTS:.o=.d)

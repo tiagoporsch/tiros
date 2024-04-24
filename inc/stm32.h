@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /*
@@ -120,7 +121,8 @@ struct gpio {
 	volatile uint32_t cr[2]; // Port configuration register
 	volatile uint32_t idr; // Port input data register
 	volatile uint32_t odr; // Port output data register
-	volatile uint32_t bsrr; // Port bit set/reset register
+	volatile int bsrrl; // Port bit set/reset register
+	volatile int bsrrh; // Port bit set/reset register
 	volatile uint32_t brr; // Port bit reset register
 	volatile uint32_t lckr; // Port configuration lock register
 };
@@ -144,6 +146,7 @@ struct gpio {
 
 void gpio_init(struct gpio* gpio);
 void gpio_configure(struct gpio* gpio, int pin, int mode, int cnf);
+void gpio_set(struct gpio* gpio, int pin, bool on);
 
 // Universal synchronous asynchronous receiver transmitter (USART)
 struct usart {

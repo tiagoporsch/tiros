@@ -46,6 +46,13 @@ void gpio_configure(struct gpio* gpio, int pin, int mode, int cnf) {
 	gpio->cr[reg] = (gpio->cr[reg] & ~(0b1111 << base)) | (mode << base) | (cnf << base << 2);
 }
 
+void gpio_set(struct gpio* gpio, int pin, bool on) {
+	if (on)
+		gpio->bsrrh |= 1 << pin;
+	else
+		gpio->bsrrl |= 1 << pin;
+}
+
 // Universal synchronous asynchronous receiver transmitter (USART)
 void usart_init(struct usart* usart, uint32_t brr) {
 	switch ((uint32_t) usart) {
