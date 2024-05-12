@@ -28,8 +28,8 @@ int main(void) {
 	// Configure button (A8) interrupt
 	gpio_init(GPIOA);
 	gpio_configure(GPIOA, 8, GPIO_CR_MODE_INPUT, GPIO_CR_CNF_INPUT_FLOATING);
-	exti_enable(8);
 	exti_configure(8, EXTI_TRIGGER_RISING);
+	exti_enable(8);
 	nvic_enable_irq(IRQN_EXTI9_5);
 
 	os_init();

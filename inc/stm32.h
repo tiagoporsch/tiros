@@ -209,6 +209,6 @@ struct usart {
 #define USART_CR1_M (1 << 12) // Word length
 #define USART_CR1_UE (1 << 13) // USART enable
 
-void usart_init(struct usart* usart, uint32_t baud);
+void usart_init(struct usart* usart, uint32_t brr);
 void usart_write(struct usart* usart, char c);
 char usart_read(struct usart* usart);

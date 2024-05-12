@@ -151,7 +151,7 @@ void os_exit(void) {
 	);
 }
 
-uint32_t os_millis(void) {
+uint32_t os_current_millis(void) {
 	return os_ticks / OS_MILLIS(1);
 }
 
@@ -262,10 +262,11 @@ void systick_handler(void) {
 void exti9_5_handler(void) {
 	exti_clear_pending(8);
 
-	static uint32_t last_ticks = 0;
-	if (os_ticks - last_ticks < OS_MILLIS(100))
+	// 100 ms debouncer
+	static uint32_t last_millis = 0;
+	if (os_current_millis() - last_millis < 100)
 		return;
-	last_ticks = os_ticks;
+	last_millis = os_current_millis();
 
 	static bool led_state = false;
 	gpio_write(GPIOC, 13, led_state = !led_state);

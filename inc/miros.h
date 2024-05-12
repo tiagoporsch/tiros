@@ -44,7 +44,7 @@ void os_delay(uint32_t ticks);
 void os_yield(void);
 void os_exit(void);
 
-uint32_t os_millis(void);
+uint32_t os_current_millis(void);
 
 /*
  * Semaphore
