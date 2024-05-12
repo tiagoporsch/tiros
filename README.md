@@ -4,7 +4,7 @@ This project contains a heavily modified version of MiROS that uses an EDF (Earl
 
 It has support for periodic tasks with specific deadlines. It's possible to create a non-periodic thread by setting its period to zero.
 
-The working principle is the global tick counter `os_ticks` and the `activation_time` variable contained in each task's TCB (Thread Control Block). This structure was chosen because if the `activation_time` is in the future, the task has not yet been activated; if it's in the past, the thread is active and its absolute deadline can be calculated by adding `relative_deadline` to the `activation_time`; thus making it simple to calculate everything the scheduler needs.
+The working principle is the global tick counter `os_ticks` and the `activation_time` variable contained in each task's TCB (Thread Control Block). This structure was chosen because if the `activation_time` is in the future, the task has not yet been activated; if it's in the past, the thread is active and its absolute deadline can be calculated by adding `deadline` to the `activation_time`; thus making it simple to calculate everything the scheduler needs.
 
 Having each active thread's absolute deadline, when the scheduler is called, it searches for the earliest one, and switches to it. Upon terminating execution, the task `period` is added to its `activation_time`.
 
