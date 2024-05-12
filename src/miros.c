@@ -34,7 +34,7 @@ static void os_schedule(void) {
 	if (os_thread_next != os_thread_current) {
 		if (os_thread_current != NULL) {
 #if defined(OS_DEBUG_GPIO)
-			gpio_set(GPIOA, os_thread_current->id, false);
+			gpio_write(GPIOA, os_thread_current->id, false);
 #endif
 #if defined(OS_DEBUG_USART)
 			usart_write(USART1, 1);
@@ -42,7 +42,7 @@ static void os_schedule(void) {
 #endif
 		}
 #if defined(OS_DEBUG_GPIO)
-		gpio_set(GPIOA, os_thread_next->id, true);
+		gpio_write(GPIOA, os_thread_next->id, true);
 #endif
 #if defined(OS_DEBUG_USART)
 		usart_write(USART1, 0);
@@ -103,7 +103,7 @@ void os_thread_add(thread_t* thread) {
 
 #if defined(OS_DEBUG_GPIO)
 	gpio_configure(GPIOA, thread->id, GPIO_CR_MODE_OUTPUT_2M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
-	gpio_set(GPIOA, thread->id, false);
+	gpio_write(GPIOA, thread->id, false);
 #endif
 }
 
@@ -192,8 +192,8 @@ void assert_handler(const char* module, int line) {
 	gpio_configure(GPIOC, 13, GPIO_CR_MODE_OUTPUT_50M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
 	bool led_state = false;
 	while (true) {
-		gpio_set(GPIOC, 13, led_state = !led_state);
-		for (volatile int i = 0; i < 1e6; i++) {}
+		gpio_write(GPIOC, 13, led_state = !led_state);
+		for (volatile int i = 0; i < 5e5; i++) {}
 	}
 }
 
@@ -257,4 +257,16 @@ void systick_handler(void) {
 	os_ticks++;
 	os_schedule();
 	__enable_irq();
+}
+
+void exti9_5_handler(void) {
+	exti_clear_pending(8);
+
+	static uint32_t last_ticks = 0;
+	if (os_ticks - last_ticks < OS_MILLIS(100))
+		return;
+	last_ticks = os_ticks;
+
+	static bool led_state = false;
+	gpio_write(GPIOC, 13, led_state = !led_state);
 }

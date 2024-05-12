@@ -1,4 +1,5 @@
 #include "miros.h"
+#include "stm32.h"
 
 thread_t correr_thread;
 uint8_t correr_stack[256] __attribute__ ((aligned(8)));
@@ -19,6 +20,18 @@ void descanso_main(void) {
 }
 
 int main(void) {
+	// Configure LED (C13)
+	gpio_init(GPIOC);
+	gpio_configure(GPIOC, 13, GPIO_CR_MODE_OUTPUT_50M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
+	gpio_write(GPIOC, 13, false);
+
+	// Configure button (A8) interrupt
+	gpio_init(GPIOA);
+	gpio_configure(GPIOA, 8, GPIO_CR_MODE_INPUT, GPIO_CR_CNF_INPUT_FLOATING);
+	exti_enable(8);
+	exti_configure(8, EXTI_TRIGGER_RISING);
+	nvic_enable_irq(IRQN_EXTI9_5);
+
 	os_init();
 
 	correr_thread = (thread_t) {

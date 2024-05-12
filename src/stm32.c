@@ -4,6 +4,12 @@
  * Cortex-M3
  */
 // Nested vectored interrupt controller (NVIC)
+void nvic_enable_irq(IRQN irqn) {
+	if (irqn >= 0) {
+		NVIC->iser[irqn >> 5] = 1 << (irqn & 0x1F);
+	}
+}
+
 void nvic_set_priority(IRQN irqn, uint32_t priority) {
 	if (irqn >= 0) {
 	} else {
@@ -35,6 +41,26 @@ uint32_t rcc_get_clock(void) {
 	return 72e6;
 }
 
+// External interrupt event controller (EXTI)
+void exti_enable(uint8_t line) {
+	EXTI->imr |= (1 << line);
+}
+
+void exti_configure(uint8_t line, uint8_t trigger) {
+	if (trigger & EXTI_TRIGGER_RISING)
+		EXTI->rtsr |= (1 << line);
+	else
+		EXTI->rtsr &= ~(1 << line);
+	if (trigger & EXTI_TRIGGER_FALLING)
+		EXTI->ftsr |= (1 << line);
+	else
+		EXTI->ftsr &= ~(1 << line);
+}
+
+void exti_clear_pending(uint8_t line) {
+	EXTI->pr |= (1 << line);
+}
+
 // General purpose input output (GPIO)
 void gpio_init(struct gpio* gpio) {
 	switch ((uint32_t) gpio) {
@@ -50,11 +76,15 @@ void gpio_configure(struct gpio* gpio, uint8_t pin, uint8_t mode, uint8_t cnf) {
 	gpio->cr[reg] = (gpio->cr[reg] & ~(0b1111 << base)) | (mode << base) | (cnf << base << 2);
 }
 
-void gpio_set(struct gpio* gpio, uint8_t pin, bool on) {
-	if (on)
-		gpio->bsrr |= 1 << pin;
-	else
+void gpio_write(struct gpio* gpio, uint8_t pin, bool value) {
+	if (value)
 		gpio->brr |= 1 << pin;
+	else
+		gpio->bsrr |= 1 << pin;
+}
+
+bool gpio_read(struct gpio* gpio, uint8_t pin) {
+	return (gpio->idr >> pin) != 0;
 }
 
 // Universal synchronous asynchronous receiver transmitter (USART)

@@ -18,13 +18,30 @@ __attribute__((always_inline)) static inline void __enable_irq(void) {
  * Cortex-M3
  */
 // Nested vectored interrupt controller (NVIC)
+struct nvic {
+	volatile uint32_t iser[1]; // Interrupt set enable register
+	uint32_t reserved0[31];
+	volatile uint32_t icer[1]; // Interrupt clear enable register
+	uint32_t reserved1[31];
+	volatile uint32_t ispr[1]; // Interrupt set pending register
+	uint32_t reserved2[31];
+	volatile uint32_t icpr[1]; // Interrupt clear pending register
+	uint32_t reserved3[31];
+	uint32_t reserved4[64];
+	volatile uint32_t ip[1]; // Interrupt priority
+};
+
+#define NVIC ((struct nvic*) 0xE000E100)
+
 typedef enum {
 	IRQN_PENDSV = -2,
 	IRQN_SYSTICK = -1,
+	IRQN_EXTI9_5 = 23,
 } IRQN;
 
 #define NVIC_PRIO_BITS 4
 
+void nvic_enable_irq(IRQN irqn);
 void nvic_set_priority(IRQN irqn, uint32_t priority);
 
 // System control block (SCB)
@@ -117,6 +134,25 @@ struct rcc {
 void rcc_init(void);
 uint32_t rcc_get_clock(void);
 
+// External interrupt event controller (EXTI)
+struct exti {
+	volatile uint32_t imr; // Interrupt mask register
+	volatile uint32_t emr; // Event mask register
+	volatile uint32_t rtsr; // Rising trigger selection register
+	volatile uint32_t ftsr; // Falling trigger selection register
+	volatile uint32_t swier; // Software interrupt event register
+	volatile uint32_t pr; // Pending register
+};
+
+#define EXTI ((struct exti*) 0x40010400)
+
+#define EXTI_TRIGGER_RISING (1 << 0)
+#define EXTI_TRIGGER_FALLING (1 << 1)
+
+void exti_enable(uint8_t line);
+void exti_configure(uint8_t line, uint8_t trigger);
+void exti_clear_pending(uint8_t line);
+
 // General purpose input output (GPIO)
 struct gpio {
 	volatile uint32_t cr[2]; // Port configuration register
@@ -146,7 +182,8 @@ struct gpio {
 
 void gpio_init(struct gpio* gpio);
 void gpio_configure(struct gpio* gpio, uint8_t pin, uint8_t mode, uint8_t cnf);
-void gpio_set(struct gpio* gpio, uint8_t pin, bool on);
+void gpio_write(struct gpio* gpio, uint8_t pin, bool value);
+bool gpio_read(struct gpio* gpio, uint8_t pin);
 
 // Universal synchronous asynchronous receiver transmitter (USART)
 struct usart {
