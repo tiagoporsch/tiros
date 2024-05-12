@@ -25,7 +25,7 @@ static void os_schedule(void) {
 		thread_t* thread = os_threads[i];
 		if (!thread || thread->activation_time > os_ticks || thread->delayed_until > os_ticks)
 			continue;
-		uint32_t absolute_deadline = thread->activation_time + thread->relative_deadline;
+		uint32_t absolute_deadline = thread->activation_time + thread->deadline;
 		if (absolute_deadline <= earliest_absolute_deadline) {
 			os_thread_next = thread;
 			earliest_absolute_deadline = absolute_deadline;
@@ -34,19 +34,19 @@ static void os_schedule(void) {
 	if (os_thread_next != os_thread_current) {
 		if (os_thread_current != NULL) {
 #if defined(OS_DEBUG_GPIO)
-			gpio_set(GPIOA, os_thread_current->debug_pin, false);
+			gpio_set(GPIOA, os_thread_current->id, false);
 #endif
 #if defined(OS_DEBUG_USART)
 			usart_write(USART1, 1);
-			usart_write(USART1, os_thread_current->debug_pin - 8);
+			usart_write(USART1, os_thread_current->id);
 #endif
 		}
 #if defined(OS_DEBUG_GPIO)
-		gpio_set(GPIOA, os_thread_next->debug_pin, true);
+		gpio_set(GPIOA, os_thread_next->id, true);
 #endif
 #if defined(OS_DEBUG_USART)
 		usart_write(USART1, 0);
-		usart_write(USART1, os_thread_next->debug_pin - 8);
+		usart_write(USART1, os_thread_next->id);
 #endif
 
 		SCB->icsr |= SCB_ICSR_PENDSVSET;
@@ -55,14 +55,18 @@ static void os_schedule(void) {
 }
 
 void os_init(void) {
+#if defined(OS_DEBUG_GPIO)
 	gpio_init(GPIOA);
+#endif
+#if defined(OS_DEBUG_USART)
+	usart_init(USART1, rcc_get_clock() / 115200);
+#endif
 	nvic_set_priority(IRQN_PENDSV, 0xFF);
 	idle_thread = (thread_t) {
 		.stack_begin = &idle_stack[sizeof(idle_stack)],
 		.entry_point = &idle_main,
-		.relative_deadline = UINT32_MAX,
+		.deadline = UINT32_MAX,
 		.period = 0,
-		.debug_pin = 8
 	};
 	os_thread_add(&idle_thread);
 	os_ticks = 0;
@@ -91,30 +95,25 @@ void os_thread_add(thread_t* thread) {
 	thread->activation_time = os_ticks;
 	thread->delayed_until = os_ticks;
 
+	for (thread->id = 0; thread->id < OS_MAX_THREADS; thread->id++)
+		if (os_threads[thread->id] == NULL)
+			break;
+	OS_ASSERT(thread->id < OS_MAX_THREADS);
+	os_threads[thread->id] = thread;
+
 #if defined(OS_DEBUG_GPIO)
-	gpio_configure(GPIOA, thread->debug_pin, GPIO_CR_MODE_OUTPUT_2M, GPIO_CR_CNF_OUTPUT_OPEN_DRAIN);
-	gpio_set(GPIOA, thread->debug_pin, false);
+	gpio_configure(GPIOA, thread->id, GPIO_CR_MODE_OUTPUT_2M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
+	gpio_set(GPIOA, thread->id, false);
 #endif
-
-	for (uint32_t i = 0; i < OS_MAX_THREADS; i++) {
-		if (os_threads[i] == NULL) {
-			os_threads[i] = thread;
-			return;
-		}
-	}
-
-	OS_ERROR();
 }
 
 void os_start(void) {
-	rcc_init();
-	usart_init(USART1, 72e6 / 115200);
-	systick_init(72e6 / OS_SECONDS(1));
+	systick_init(rcc_get_clock() / OS_SECONDS(1));
 	nvic_set_priority(IRQN_SYSTICK, 0x00);
 	__disable_irq();
 	os_schedule();
 	__enable_irq();
-	OS_ERROR();
+	OS_ASSERT(false);
 }
 
 void os_burn(uint32_t ticks) {
@@ -139,16 +138,7 @@ void os_yield(void) {
 
 void os_exit(void) {
 	__disable_irq();
-	if (os_thread_current->period == 0) {
-		for (uint32_t i = 1; i < OS_MAX_THREADS; i++) {
-			if (os_threads[i] == os_thread_current) {
-				os_threads[i] = NULL;
-				break;
-			}
-		}
-	} else {
-		os_thread_current->activation_time += os_thread_current->period;
-	}
+	os_thread_current->activation_time += os_thread_current->period;
 	os_schedule();
 	__enable_irq();
 	asm volatile (
@@ -159,6 +149,10 @@ void os_exit(void) {
 		"  ldr r1, [r1, #8]\n"
 		"  bx r1\n"
 	);
+}
+
+uint32_t os_millis(void) {
+	return os_ticks / OS_MILLIS(1);
 }
 
 /*
@@ -193,34 +187,34 @@ void semaphore_signal(semaphore_t* semaphore) {
  * Handlers
  */
 void assert_handler(const char* module, int line) {
-	while (true) {}
+	__disable_irq();
+	gpio_init(GPIOC);
+	gpio_configure(GPIOC, 13, GPIO_CR_MODE_OUTPUT_50M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
+	bool led_state = false;
+	while (true) {
+		gpio_set(GPIOC, 13, led_state = !led_state);
+		for (volatile int i = 0; i < 1e6; i++) {}
+	}
 }
 
 void nmi_handler(void) {
-	while (true) {}
+	OS_ASSERT(false);
 }
 
 void hard_fault_handler(void) {
-	while (true) {}
+	OS_ASSERT(false);
 }
 
 void mm_fault_handler(void) {
-	while (true) {}
+	OS_ASSERT(false);
 }
 
 void bus_fault_handler(void) {
-	while (true) {}
+	OS_ASSERT(false);
 }
 
 void usage_fault_handler(void) {
-	while (true) {}
-}
-
-void systick_handler(void) {
-	__disable_irq();
-	os_ticks++;
-	os_schedule();
-	__enable_irq();
+	OS_ASSERT(false);
 }
 
 __attribute__ ((naked))
@@ -256,4 +250,11 @@ void pendsv_handler(void) {
 		// return;
 		"  bx lr\n"
 	);
+}
+
+void systick_handler(void) {
+	__disable_irq();
+	os_ticks++;
+	os_schedule();
+	__enable_irq();
 }

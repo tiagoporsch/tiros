@@ -5,23 +5,22 @@
 /*
  * ctype.h
  */
-int isdigit(int c);
+int std_isdigit(int c);
 
 /*
  * stdio.h
  */
-int putchar(int c);
-int puts(const char* s);
-int printf(const char* restrict format, ...);
+int std_putc(int c);
+int std_puts(const char* s);
+int std_printf(const char* restrict format, ...);
 
 /*
  * stdlib.h
  */
-char* itoa(int n, char* buffer, int base);
+char* std_itoa(int n, char* buffer, int base);
 
 /*
  * string.h
  */
-void* memset(void* dest, int c, size_t n);
-size_t strlen(const char* s);
-char* strrev(char* s);
+size_t std_strlen(const char* s);
+char* std_strrev(char* s);

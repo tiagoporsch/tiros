@@ -115,14 +115,14 @@ struct rcc {
 #define RCC_APB2ENR_USART1EN (1 << 14)
 
 void rcc_init(void);
+uint32_t rcc_get_clock(void);
 
 // General purpose input output (GPIO)
 struct gpio {
 	volatile uint32_t cr[2]; // Port configuration register
 	volatile uint32_t idr; // Port input data register
 	volatile uint32_t odr; // Port output data register
-	volatile int bsrrl; // Port bit set/reset register
-	volatile int bsrrh; // Port bit set/reset register
+	volatile uint32_t bsrr; // Port bit set/reset register
 	volatile uint32_t brr; // Port bit reset register
 	volatile uint32_t lckr; // Port configuration lock register
 };
@@ -145,8 +145,8 @@ struct gpio {
 #define GPIO_CR_CNF_OUTPUT_ALT_OPEN_DRAIN 0b11
 
 void gpio_init(struct gpio* gpio);
-void gpio_configure(struct gpio* gpio, int pin, int mode, int cnf);
-void gpio_set(struct gpio* gpio, int pin, bool on);
+void gpio_configure(struct gpio* gpio, uint8_t pin, uint8_t mode, uint8_t cnf);
+void gpio_set(struct gpio* gpio, uint8_t pin, bool on);
 
 // Universal synchronous asynchronous receiver transmitter (USART)
 struct usart {

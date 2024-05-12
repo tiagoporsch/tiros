@@ -24,27 +24,24 @@ int main(void) {
 	correr_thread = (thread_t) {
 		.stack_begin = &correr_stack[sizeof(correr_stack)],
 		.entry_point = &correr_main,
-		.relative_deadline = OS_SECONDS(5),
+		.deadline = OS_SECONDS(5),
 		.period = OS_SECONDS(6),
-		.debug_pin = 9
 	};
 	os_thread_add(&correr_thread);
 
 	agua_thread = (thread_t) {
 		.stack_begin = &agua_stack[sizeof(agua_stack)],
 		.entry_point = &agua_main,
-		.relative_deadline = OS_SECONDS(4),
+		.deadline = OS_SECONDS(4),
 		.period = OS_SECONDS(8),
-		.debug_pin = 10
 	};
 	os_thread_add(&agua_thread);
 
 	descanso_thread = (thread_t) {
 		.stack_begin = &descanso_stack[sizeof(descanso_stack)],
 		.entry_point = &descanso_main,
-		.relative_deadline = OS_SECONDS(8),
+		.deadline = OS_SECONDS(8),
 		.period = OS_SECONDS(12),
-		.debug_pin = 11
 	};
 	os_thread_add(&descanso_thread);
 

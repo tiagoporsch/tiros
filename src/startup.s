@@ -35,6 +35,9 @@ reset_handler:
 	strlt r2, [r0], #4
 	blt 0b
 
+	/* Configure the clock */
+	bl rcc_init
+
 	/* Jump to main */
 	bl main
 	b .

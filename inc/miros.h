@@ -6,7 +6,6 @@
  * Assert
  */
 #define OS_ASSERT(test) ((test) ? (void) 0 : assert_handler(__FILE__, __LINE__))
-#define OS_ERROR() assert_handler(__FILE__, __LINE__)
 
 void assert_handler(const char* const file, int line);
 
@@ -21,19 +20,20 @@ typedef struct {
 	uint32_t* stack_pointer;
 	void (*entry_point)(void);
 
-	uint32_t relative_deadline;
+	uint8_t id;
+
+	uint32_t deadline;
 	uint32_t period;
 
 	uint32_t activation_time;
 	uint32_t delayed_until;
-
-	uint8_t debug_pin;
 } thread_t;
 
 /*
  * Operating system
  */
-#define OS_SECONDS(s) (s * 100)
+#define OS_MILLIS(ms) (ms)
+#define OS_SECONDS(s) ((s) * OS_MILLIS(1000))
 
 void os_init(void);
 void os_thread_add(thread_t* thread);
@@ -43,6 +43,8 @@ void os_burn(uint32_t ticks);
 void os_delay(uint32_t ticks);
 void os_yield(void);
 void os_exit(void);
+
+uint32_t os_millis(void);
 
 /*
  * Semaphore

@@ -31,6 +31,10 @@ void rcc_init(void) {
 	RCC->cfgr = RCC_CFGR_PLLSRC | RCC_CFGR_PLLMULL(7) | RCC_CFGR_SW(0b10) | RCC_CFGR_PPRE1(0b100);
 }
 
+uint32_t rcc_get_clock(void) {
+	return 72e6;
+}
+
 // General purpose input output (GPIO)
 void gpio_init(struct gpio* gpio) {
 	switch ((uint32_t) gpio) {
@@ -40,17 +44,17 @@ void gpio_init(struct gpio* gpio) {
 	}
 }
 
-void gpio_configure(struct gpio* gpio, int pin, int mode, int cnf) {
-	int reg = pin / 8;
-	int base = (pin % 8) * 4;
+void gpio_configure(struct gpio* gpio, uint8_t pin, uint8_t mode, uint8_t cnf) {
+	uint8_t reg = pin / 8;
+	uint8_t base = (pin % 8) * 4;
 	gpio->cr[reg] = (gpio->cr[reg] & ~(0b1111 << base)) | (mode << base) | (cnf << base << 2);
 }
 
-void gpio_set(struct gpio* gpio, int pin, bool on) {
+void gpio_set(struct gpio* gpio, uint8_t pin, bool on) {
 	if (on)
-		gpio->bsrrh |= 1 << pin;
+		gpio->bsrr |= 1 << pin;
 	else
-		gpio->bsrrl |= 1 << pin;
+		gpio->brr |= 1 << pin;
 }
 
 // Universal synchronous asynchronous receiver transmitter (USART)

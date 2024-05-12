@@ -9,15 +9,15 @@ The working principle is the global tick counter `os_ticks` and the `activation_
 Having each active thread's absolute deadline, when the scheduler is called, it searches for the earliest one, and switches to it. Upon terminating execution, the task `period` is added to its `activation_time`.
 
 ## Tracer
-This project also contains a tracer in `tracer.py`. Using matplotlib and pyserial, it's possible to visualize when and for how long each thread is executing.
+This project also contains a tracer in `tools/tracer.py`. Using matplotlib and pyserial, it's possible to visualize when and for how long each thread is executing.
 
 It's necessary to adjust the `traceds` list in the Python script based on your task set and  define `OS_DEBUG_USART` when compiling.
 
-There's also the possibility to use an oscilloscope or a logic analyzer to debug your tasks. Make sure to set the define `OS_DEBUG_GPIO`, and then hook up your probes to each thread's debug pin.
+There's also the possibility to use an oscilloscope or a logic analyzer to debug your tasks. Make sure to set the define `OS_DEBUG_GPIO`, and then hook up your probes to each thread's debug pin. The debug pins reside in GPIO A, and their number is the threads ID (0 for the idle thread, and then assigned incrementally for each configured thread).
 
 ## Example
 
-Given the following task set:
+The following task set:
 
 |Task    |Computation Time|Deadline|Period|
 |--------|----------------|--------|------|
@@ -25,11 +25,14 @@ Given the following task set:
 |Água    |               2|       4|     8|
 |Descanso|               4|       8|    12|
 
-This is the output from `tracer.py`:
-![Tracer view](img/tracer.png)
+[SimSo](https://projects.laas.fr/simso/simso-web) yields the following results:
+![SimSo results](images/simso.png)
+
+And after being run on this operating system, this is the output from `tracer.py`:
+![Tracer view](images/tracer.png)
 
 And this is the output from PulseView, a logic analyzer:
-![PulseView](img/pulseview.png)
+![PulseView](images/pulseview.png)
 
 ## Compiling
 

@@ -4,8 +4,8 @@ AS:=arm-none-eabi-as
 CC:=arm-none-eabi-gcc
 LD:=arm-none-eabi-ld.bfd
 
-CFLAGS:=-DOS_DEBUG_USART -Iinc -MD -fno-builtin -mcpu=cortex-m3 -mthumb -nostartfiles -nostdlib
-LDFLAGS:=-Tlinker.ld
+CFLAGS:=-DOS_DEBUG_GPIO -Iinc -MD -fno-builtin -mcpu=cortex-m3 -mthumb -nostartfiles -nostdlib
+LDFLAGS:=-Tsrc/linker.ld
 
 OBJECTS:=$(patsubst src/%,bin/%.o,$(wildcard src/*.c src/*.s))
 
