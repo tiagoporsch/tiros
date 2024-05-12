@@ -26,12 +26,15 @@ The following task set:
 |Descanso|               4|       8|    12|
 
 [SimSo](https://projects.laas.fr/simso/simso-web) yields the following results:
+
 ![SimSo results](images/simso.png)
 
 And after being run on this operating system, this is the output from `tracer.py`:
+
 ![Tracer view](images/tracer.png)
 
 And this is the output from PulseView, a logic analyzer:
+
 ![PulseView](images/pulseview.png)
 
 ## Compiling
