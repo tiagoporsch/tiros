@@ -28,28 +28,30 @@ static struct {
 	.tail = 0,
 };
 
-bool os_enqueue_aperiodic_task(aperiodic_task_t aperiodic_task) {
+bool os_enqueue_aperiodic_task(void (*entry_point)(void), uint32_t computation_time) {
+	// If the queue is full, return false
 	if ((aperiodic_task_queue.head + 1) % OS_MAX_APERIODIC_TASKS == aperiodic_task_queue.tail)
 		return false;
 
-	// Start with d_0 = 0
-	static uint32_t previous_absolute_deadline = 0;
+	aperiodic_task_t* aperiodic_task = &aperiodic_task_queue.tasks[aperiodic_task_queue.head];
+	aperiodic_task->entry_point = entry_point;
 
 	// Calculate a new absolute deadline by the equation max(t, d_(k-1)) + C/(1-U) where
-	//   t is the current time,
-	//   d_(k-1) is the absolute deadline of the previous aperiodic request,
-	//   C is the aperiodic requests computation time,
-	//   1/(1-U) is the servers bandwidth.
-	aperiodic_task.absolute_deadline = max(os_ticks, previous_absolute_deadline) + aperiodic_task.computation_time * os_server_inverse_bandwidth;
-	previous_absolute_deadline = aperiodic_task.absolute_deadline;
+	//   t is the current time
+	//   d_(k-1) is the absolute deadline of the previous aperiodic request
+	//   C is the aperiodic task computation time
+	//   1/(1-U) is the inverse server bandwidth
+	// Start with d_0 = 0
+	static uint32_t previous_absolute_deadline = 0;
+	aperiodic_task->absolute_deadline = max(os_ticks, previous_absolute_deadline) + computation_time * os_server_inverse_bandwidth;
+	previous_absolute_deadline = aperiodic_task->absolute_deadline;
 
-	// Add the task to the queue
-	aperiodic_task_queue.tasks[aperiodic_task_queue.head] = aperiodic_task;
 	aperiodic_task_queue.head = (aperiodic_task_queue.head + 1) % OS_MAX_APERIODIC_TASKS;
 	return true;
 }
 
 static bool os_dequeue_aperiodic_task(aperiodic_task_t* aperiodic_task) {
+	// If queue is empty, return false
 	if (aperiodic_task_queue.head == aperiodic_task_queue.tail)
 		return false;
 	*aperiodic_task = aperiodic_task_queue.tasks[aperiodic_task_queue.tail];
@@ -58,15 +60,13 @@ static bool os_dequeue_aperiodic_task(aperiodic_task_t* aperiodic_task) {
 }
 
 static bool os_peek_aperiodic_task(aperiodic_task_t* aperiodic_task) {
+	// If queue is empty, return false
 	if (aperiodic_task_queue.head == aperiodic_task_queue.tail)
 		return false;
 	*aperiodic_task = aperiodic_task_queue.tasks[aperiodic_task_queue.tail];
 	return true;
 }
 
-/*
- * Operating system
- */
 static thread_t os_idle_thread;
 static uint8_t os_idle_stack[256] __attribute__ ((aligned(8)));
 static void os_idle_main(void) {
@@ -76,18 +76,15 @@ static void os_idle_main(void) {
 static thread_t os_server_thread; 
 static uint8_t os_server_stack[256] __attribute__ ((aligned(8)));
 static void os_server_main(void) {
-	gpio_write(GPIOC, 13, true);
 	aperiodic_task_t aperiodic_task;
 	OS_ASSERT(os_dequeue_aperiodic_task(&aperiodic_task));
-	os_burn(aperiodic_task.computation_time);
-	gpio_write(GPIOC, 13, false);
+	aperiodic_task.entry_point();
 }
 
 static void os_schedule(void) {
-	// If there is an unserved aperiodic task
+	// If there is an unserved aperiodic task and the server is not active, activate it
 	aperiodic_task_t aperiodic_task;
 	if (os_peek_aperiodic_task(&aperiodic_task) && os_server_thread.activation_time == UINT32_MAX) {
-		// Activate the server thread
 		os_server_thread.relative_deadline = aperiodic_task.absolute_deadline - os_ticks;
 		os_server_thread.activation_time = os_ticks;
 	}
@@ -108,37 +105,25 @@ static void os_schedule(void) {
 
 	// Switch to the highest-priority thread
 	if (os_thread_next != os_thread_current) {
-		if (os_thread_current != NULL) {
-#if defined(OS_DEBUG_GPIO)
+		// Turn on and off debugging pins
+		if (os_thread_current != NULL)
 			gpio_write(GPIOA, os_thread_current->id, false);
-#endif
-#if defined(OS_DEBUG_USART)
-			usart_write(USART1, 1);
-			usart_write(USART1, os_thread_current->id);
-#endif
-		}
-#if defined(OS_DEBUG_GPIO)
 		gpio_write(GPIOA, os_thread_next->id, true);
-#endif
-#if defined(OS_DEBUG_USART)
-		usart_write(USART1, 0);
-		usart_write(USART1, os_thread_next->id);
-#endif
 
+		// Force a PendSV exception
 		SCB->icsr |= SCB_ICSR_PENDSVSET;
 		asm volatile ("dsb");
 	}
 }
 
 void os_init(uint32_t server_inverse_bandwidth) {
-#if defined(OS_DEBUG_GPIO)
+	// Enable GPIO for debugging
 	gpio_init(GPIOA);
-#endif
-#if defined(OS_DEBUG_USART)
-	usart_init(USART1, rcc_get_clock() / 115200);
-#endif
 
+	// Set PendSV to the lowest priority
 	nvic_set_priority(IRQN_PENDSV, 0xFF);
+
+	os_ticks = 0;
 
 	os_idle_thread = (thread_t) {
 		.stack_begin = &os_idle_stack[sizeof(os_idle_stack)],
@@ -156,12 +141,18 @@ void os_init(uint32_t server_inverse_bandwidth) {
 		.period = UINT32_MAX,
 	};
 	os_add_thread(&os_server_thread);
-
-	os_ticks = 0;
 }
 
 void os_add_thread(thread_t* thread) {
 	OS_ASSERT(thread);
+
+	// Allocate a slot for this thread
+	for (thread->id = 0; thread->id < OS_MAX_THREADS; thread->id++)
+		if (os_threads[thread->id] == NULL)
+			break;
+	OS_ASSERT(thread->id < OS_MAX_THREADS);
+	os_threads[thread->id] = thread;
+
 	thread->stack_pointer = (uint32_t*) thread->stack_begin;
 	*(--thread->stack_pointer) = (1 << 24); // xPSR
 	*(--thread->stack_pointer) = (uint32_t) thread->entry_point; // PC
@@ -183,26 +174,20 @@ void os_add_thread(thread_t* thread) {
 	thread->activation_time = os_ticks;
 	thread->delayed_until = os_ticks;
 
-	for (thread->id = 0; thread->id < OS_MAX_THREADS; thread->id++)
-		if (os_threads[thread->id] == NULL)
-			break;
-	OS_ASSERT(thread->id < OS_MAX_THREADS);
-	os_threads[thread->id] = thread;
-
-#if defined(OS_DEBUG_GPIO)
+	// Configure debug pins
 	gpio_configure(GPIOA, thread->id, GPIO_CR_MODE_OUTPUT_2M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
 	gpio_write(GPIOA, thread->id, false);
-#endif
 }
 
 void os_start(void) {
+	__disable_irq();
+
 	// Initialize SysTick such that OS_SECONDS(1) is in fact equals to one second
 	// and assign it the highest priority
 	systick_init(rcc_get_clock() / OS_SECONDS(1));
 	nvic_set_priority(IRQN_SYSTICK, 0x00);
 
 	// Schedule the first thread and jump to it!
-	__disable_irq();
 	os_schedule();
 	__enable_irq();
 
@@ -358,18 +343,4 @@ void systick_handler(void) {
 	os_ticks++;
 	os_schedule();
 	__enable_irq();
-}
-
-void exti9_5_handler(void) {
-	exti_clear_pending(8);
-
-	// 100 ms debouncer
-	static uint32_t last_millis = 0;
-	if (os_current_millis() - last_millis < 100)
-		return;
-	last_millis = os_current_millis();
-
-	os_enqueue_aperiodic_task((aperiodic_task_t) {
-		.computation_time = OS_SECONDS(1)
-	});
 }

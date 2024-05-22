@@ -1,6 +1,24 @@
 #include "miros.h"
 #include "stm32.h"
 
+void aperiodic_main(void) {
+	gpio_write(GPIOC, 13, true);
+	os_burn(OS_SECONDS(1));
+	gpio_write(GPIOC, 13, false);
+}
+
+void exti9_5_handler(void) {
+	exti_clear_pending(8);
+
+	// 100 ms debouncer
+	static uint32_t last_millis = 0;
+	if (os_current_millis() - last_millis < 100)
+		return;
+	last_millis = os_current_millis();
+
+	os_enqueue_aperiodic_task(&aperiodic_main, OS_SECONDS(1));
+}
+
 thread_t correr_thread;
 uint8_t correr_stack[256] __attribute__ ((aligned(8)));
 void correr_main(void) {

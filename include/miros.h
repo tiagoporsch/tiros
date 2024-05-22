@@ -14,11 +14,12 @@ void assert_handler(const char* const file, int line);
  * Aperiodic task
  */
 typedef struct {
+	void (*entry_point)(void);
 	uint32_t computation_time;
 	uint32_t absolute_deadline;
 } aperiodic_task_t;
 
-bool os_enqueue_aperiodic_task(aperiodic_task_t aperiodic_task);
+bool os_enqueue_aperiodic_task(void (*entry_point)(void), uint32_t computation_time);
 
 /*
  * Thread
