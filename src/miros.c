@@ -119,9 +119,22 @@ static void os_schedule(void) {
 	// Switch to the highest-priority thread
 	if (os_thread_next != os_thread_current) {
 		// Turn on and off debugging pins
-		if (os_thread_current != NULL)
-			gpio_write(GPIOA, os_thread_current->id, false);
-		gpio_write(GPIOA, os_thread_next->id, true);
+		if (os_thread_current != NULL) {
+			#if defined(OS_DEBUG_GPIO)
+				gpio_write(GPIOA, os_thread_current->id, false);
+			#endif
+			#if defined(OS_DEBUG_USART)
+				usart_write(USART1, 1);
+				usart_write(USART1, os_thread_current->id);
+			#endif
+		}
+		#if defined(OS_DEBUG_GPIO)
+			gpio_write(GPIOA, os_thread_current->id, true);
+		#endif
+		#if defined(OS_DEBUG_USART)
+			usart_write(USART1, 0);
+			usart_write(USART1, os_thread_current->id);
+		#endif
 
 		// Force a PendSV exception
 		SCB->icsr |= SCB_ICSR_PENDSVSET;
@@ -130,8 +143,12 @@ static void os_schedule(void) {
 }
 
 void os_init(uint32_t server_inverse_bandwidth) {
-	// Enable GPIO A for debugging
-	gpio_init(GPIOA);
+	#if defined(OS_DEBUG_GPIO)
+		gpio_init(GPIOA);
+	#endif
+	#if defined(OS_DEBUG_USART)
+		usart_init(USART1, rcc_get_clock() / 115200);
+	#endif
 
 	// TEMP(Tiago): Enable GPIO A pin 9 for aperiodic request debugging
 	gpio_configure(GPIOA, 9, GPIO_CR_MODE_OUTPUT_2M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
@@ -192,9 +209,10 @@ void os_add_thread(thread_t* thread) {
 	thread->activation_time = os_ticks;
 	thread->delayed_until = os_ticks;
 
-	// Configure debug pins
-	gpio_configure(GPIOA, thread->id, GPIO_CR_MODE_OUTPUT_2M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
-	gpio_write(GPIOA, thread->id, false);
+	#if defined(OS_DEBUG_GPIO)
+		gpio_configure(GPIOA, thread->id, GPIO_CR_MODE_OUTPUT_2M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
+		gpio_write(GPIOA, thread->id, false);
+	#endif
 }
 
 void os_start(void) {
