@@ -1,25 +1,6 @@
 #include "miros.h"
 #include "stm32.h"
 
-void aperiodic_main(void) {
-	gpio_write(GPIOC, 13, true);
-	os_burn(OS_MILLIS(500));
-	gpio_write(GPIOC, 13, false);
-	os_burn(OS_MILLIS(500));
-}
-
-void exti9_5_handler(void) {
-	exti_clear_pending(8);
-
-	// 100 ms debouncer
-	static uint32_t last_millis = 0;
-	if (os_current_millis() - last_millis < 100)
-		return;
-	last_millis = os_current_millis();
-
-	os_enqueue_aperiodic_task(&aperiodic_main, OS_SECONDS(1));
-}
-
 thread_t task1_thread;
 uint8_t task1_stack[256] __attribute__ ((aligned(8)));
 void task1_main(void) {
@@ -29,6 +10,14 @@ void task1_main(void) {
 thread_t task2_thread;
 uint8_t task2_stack[256] __attribute__ ((aligned(8)));
 void task2_main(void) {
+	os_burn(OS_SECONDS(2));
+}
+
+void aperiodic1_main(void) {
+	os_burn(OS_SECONDS(1));
+}
+
+void aperiodic2_main(void) {
 	os_burn(OS_SECONDS(2));
 }
 
@@ -64,4 +53,33 @@ int main(void) {
 	os_add_thread(&task2_thread);
 
 	os_start();
+}
+
+void systick_handler(void) {
+	// TEMP(Tiago): Hard-code aperiodic requests for testing
+	//   1 second computation time at slightly before 3 seconds
+	//   2 seconds computation time at slightly before 9 seconds
+	//   1 second computation time at slightly before 14 seconds
+	// Request them slightly before to account for imperfections on the model
+	switch (os_current_millis()) {
+		case  2990: os_enqueue_aperiodic_task(&aperiodic1_main, OS_SECONDS(1)); break;
+		case  8990: os_enqueue_aperiodic_task(&aperiodic2_main, OS_SECONDS(2)); break;
+		case 13990: os_enqueue_aperiodic_task(&aperiodic1_main, OS_SECONDS(1)); break;
+		default: break;
+	}
+	os_tick();
+}
+
+void exti9_5_handler(void) {
+	exti_clear_pending(8);
+
+	// 200 ms debouncer
+	static uint32_t last_millis = 0;
+	if (os_current_millis() - last_millis < 200)
+		return;
+	last_millis = os_current_millis();
+
+	// When the pull-up button wired to pin A8 gets pulled high
+	// enqueue an aperiodic task with computation time of 1 second
+	os_enqueue_aperiodic_task(&aperiodic1_main, OS_SECONDS(1));
 }

@@ -29,6 +29,11 @@ static struct {
 };
 
 bool os_enqueue_aperiodic_task(void (*entry_point)(void), uint32_t computation_time) {
+	__disable_irq();
+
+	// TEMP(Tiago): debug aperiodic request using pin A9
+	gpio_write(GPIOA, 9, true);
+
 	// If the queue is full, return false
 	if ((aperiodic_task_queue.head + 1) % OS_MAX_APERIODIC_TASKS == aperiodic_task_queue.tail)
 		return false;
@@ -47,15 +52,22 @@ bool os_enqueue_aperiodic_task(void (*entry_point)(void), uint32_t computation_t
 	previous_absolute_deadline = aperiodic_task->absolute_deadline;
 
 	aperiodic_task_queue.head = (aperiodic_task_queue.head + 1) % OS_MAX_APERIODIC_TASKS;
+
+	// TEMP(Tiago): debug aperiodic request using pin A9
+	gpio_write(GPIOA, 9, false);
+
+	__enable_irq();
 	return true;
 }
 
 static bool os_dequeue_aperiodic_task(aperiodic_task_t* aperiodic_task) {
+	__disable_irq();
 	// If queue is empty, return false
 	if (aperiodic_task_queue.head == aperiodic_task_queue.tail)
 		return false;
 	*aperiodic_task = aperiodic_task_queue.tasks[aperiodic_task_queue.tail];
 	aperiodic_task_queue.tail = (aperiodic_task_queue.tail + 1) % OS_MAX_APERIODIC_TASKS;
+	__enable_irq();
 	return true;
 }
 
@@ -77,7 +89,8 @@ static thread_t os_server_thread;
 static uint8_t os_server_stack[256] __attribute__ ((aligned(8)));
 static void os_server_main(void) {
 	aperiodic_task_t aperiodic_task;
-	OS_ASSERT(os_dequeue_aperiodic_task(&aperiodic_task));
+	if (!os_dequeue_aperiodic_task(&aperiodic_task))
+		return;
 	aperiodic_task.entry_point();
 }
 
@@ -117,8 +130,12 @@ static void os_schedule(void) {
 }
 
 void os_init(uint32_t server_inverse_bandwidth) {
-	// Enable GPIO for debugging
+	// Enable GPIO A for debugging
 	gpio_init(GPIOA);
+
+	// TEMP(Tiago): Enable GPIO A pin 9 for aperiodic request debugging
+	gpio_configure(GPIOA, 9, GPIO_CR_MODE_OUTPUT_2M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
+	gpio_write(GPIOA, 9, false);
 
 	// Set PendSV to the lowest priority
 	nvic_set_priority(IRQN_PENDSV, 0xFF);
@@ -141,6 +158,7 @@ void os_init(uint32_t server_inverse_bandwidth) {
 		.period = UINT32_MAX,
 	};
 	os_add_thread(&os_server_thread);
+	os_server_thread.activation_time = UINT32_MAX;
 }
 
 void os_add_thread(thread_t* thread) {
@@ -192,6 +210,13 @@ void os_start(void) {
 	__enable_irq();
 
 	OS_ASSERT(false);
+}
+
+void os_tick(void) {
+	__disable_irq();
+	os_ticks++;
+	os_schedule();
+	__enable_irq();
 }
 
 void os_burn(uint32_t ticks) {
@@ -273,9 +298,14 @@ void semaphore_signal(semaphore_t* semaphore) {
  */
 void assert_handler(const char* module, int line) {
 	(void) module, (void) line;
+
 	__disable_irq();
+
+	// Initialize the on-board LED (pin C13)
 	gpio_init(GPIOC);
 	gpio_configure(GPIOC, 13, GPIO_CR_MODE_OUTPUT_50M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
+
+	// And blink it forever
 	bool led_state = false;
 	while (true) {
 		gpio_write(GPIOC, 13, led_state = !led_state);
@@ -336,11 +366,4 @@ void pendsv_handler(void) {
 		// return;
 		"  bx lr\n"
 	);
-}
-
-void systick_handler(void) {
-	__disable_irq();
-	os_ticks++;
-	os_schedule();
-	__enable_irq();
 }

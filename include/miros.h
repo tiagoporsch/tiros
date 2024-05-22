@@ -15,7 +15,6 @@ void assert_handler(const char* const file, int line);
  */
 typedef struct {
 	void (*entry_point)(void);
-	uint32_t computation_time;
 	uint32_t absolute_deadline;
 } aperiodic_task_t;
 
@@ -51,6 +50,7 @@ typedef struct {
 void os_init(uint32_t server_inverse_bandwidth);
 void os_add_thread(thread_t* thread);
 void os_start(void);
+void os_tick(void);
 
 void os_burn(uint32_t ticks);
 void os_delay(uint32_t ticks);
