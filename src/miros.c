@@ -18,11 +18,11 @@ static thread_t* os_thread_next;
 static uint32_t os_ticks;
 static uint32_t os_server_inverse_bandwidth;
 
-#define OS_MAX_APERIODIC_TASKS 16
+#define OS_MAX_APERIODIC_TASKS 64
 static struct {
 	aperiodic_task_t tasks[OS_MAX_APERIODIC_TASKS];
-	int32_t head;
-	int32_t tail;
+	uint32_t head;
+	uint32_t tail;
 } aperiodic_task_queue = {
 	.head = 0,
 	.tail = 0,

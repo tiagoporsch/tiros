@@ -3,8 +3,9 @@
 
 void aperiodic_main(void) {
 	gpio_write(GPIOC, 13, true);
-	os_burn(OS_SECONDS(1));
+	os_burn(OS_MILLIS(500));
 	gpio_write(GPIOC, 13, false);
+	os_burn(OS_MILLIS(500));
 }
 
 void exti9_5_handler(void) {
@@ -19,22 +20,16 @@ void exti9_5_handler(void) {
 	os_enqueue_aperiodic_task(&aperiodic_main, OS_SECONDS(1));
 }
 
-thread_t correr_thread;
-uint8_t correr_stack[256] __attribute__ ((aligned(8)));
-void correr_main(void) {
-	os_burn(OS_SECONDS(2));
+thread_t task1_thread;
+uint8_t task1_stack[256] __attribute__ ((aligned(8)));
+void task1_main(void) {
+	os_burn(OS_SECONDS(3));
 }
 
-thread_t agua_thread;
-uint8_t agua_stack[256] __attribute__ ((aligned(8)));
-void agua_main(void) {
+thread_t task2_thread;
+uint8_t task2_stack[256] __attribute__ ((aligned(8)));
+void task2_main(void) {
 	os_burn(OS_SECONDS(2));
-}
-
-thread_t descanso_thread;
-uint8_t descanso_stack[256] __attribute__ ((aligned(8)));
-void descanso_main(void) {
-	os_burn(OS_SECONDS(4));
 }
 
 int main(void) {
@@ -50,31 +45,23 @@ int main(void) {
 	exti_enable(8);
 	nvic_enable_irq(IRQN_EXTI9_5);
 
-	os_init(3);
+	os_init(4);
 
-	correr_thread = (thread_t) {
-		.stack_begin = &correr_stack[sizeof(correr_stack)],
-		.entry_point = &correr_main,
+	task1_thread = (thread_t) {
+		.stack_begin = &task1_stack[sizeof(task1_stack)],
+		.entry_point = &task1_main,
 		.relative_deadline = OS_SECONDS(6),
 		.period = OS_SECONDS(6),
 	};
-	os_add_thread(&correr_thread);
+	os_add_thread(&task1_thread);
 
-	agua_thread = (thread_t) {
-		.stack_begin = &agua_stack[sizeof(agua_stack)],
-		.entry_point = &agua_main,
+	task2_thread = (thread_t) {
+		.stack_begin = &task2_stack[sizeof(task2_stack)],
+		.entry_point = &task2_main,
 		.relative_deadline = OS_SECONDS(8),
 		.period = OS_SECONDS(8),
 	};
-	os_add_thread(&agua_thread);
-
-	descanso_thread = (thread_t) {
-		.stack_begin = &descanso_stack[sizeof(descanso_stack)],
-		.entry_point = &descanso_main,
-		.relative_deadline = OS_SECONDS(12),
-		.period = OS_SECONDS(12),
-	};
-	os_add_thread(&descanso_thread);
+	os_add_thread(&task2_thread);
 
 	os_start();
 }
