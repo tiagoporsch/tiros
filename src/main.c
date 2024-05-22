@@ -32,31 +32,31 @@ int main(void) {
 	exti_enable(8);
 	nvic_enable_irq(IRQN_EXTI9_5);
 
-	os_init();
+	os_init(3);
 
 	correr_thread = (thread_t) {
 		.stack_begin = &correr_stack[sizeof(correr_stack)],
 		.entry_point = &correr_main,
-		.deadline = OS_SECONDS(5),
+		.relative_deadline = OS_SECONDS(6),
 		.period = OS_SECONDS(6),
 	};
-	os_thread_add(&correr_thread);
+	os_add_thread(&correr_thread);
 
 	agua_thread = (thread_t) {
 		.stack_begin = &agua_stack[sizeof(agua_stack)],
 		.entry_point = &agua_main,
-		.deadline = OS_SECONDS(4),
+		.relative_deadline = OS_SECONDS(8),
 		.period = OS_SECONDS(8),
 	};
-	os_thread_add(&agua_thread);
+	os_add_thread(&agua_thread);
 
 	descanso_thread = (thread_t) {
 		.stack_begin = &descanso_stack[sizeof(descanso_stack)],
 		.entry_point = &descanso_main,
-		.deadline = OS_SECONDS(8),
+		.relative_deadline = OS_SECONDS(12),
 		.period = OS_SECONDS(12),
 	};
-	os_thread_add(&descanso_thread);
+	os_add_thread(&descanso_thread);
 
 	os_start();
 }

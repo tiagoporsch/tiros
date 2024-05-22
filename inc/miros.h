@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /*
@@ -8,6 +9,16 @@
 #define OS_ASSERT(test) ((test) ? (void) 0 : assert_handler(__FILE__, __LINE__))
 
 void assert_handler(const char* const file, int line);
+
+/*
+ * Aperiodic task
+ */
+typedef struct {
+	uint32_t computation_time;
+	uint32_t absolute_deadline;
+} aperiodic_task_t;
+
+bool os_enqueue_aperiodic_task(aperiodic_task_t aperiodic_task);
 
 /*
  * Thread
@@ -22,7 +33,8 @@ typedef struct {
 
 	uint8_t id;
 
-	uint32_t deadline;
+	uint32_t computation_time;
+	uint32_t relative_deadline;
 	uint32_t period;
 
 	uint32_t activation_time;
@@ -35,8 +47,8 @@ typedef struct {
 #define OS_MILLIS(ms) (ms)
 #define OS_SECONDS(s) ((s) * OS_MILLIS(1000))
 
-void os_init(void);
-void os_thread_add(thread_t* thread);
+void os_init(uint32_t server_inverse_bandwidth);
+void os_add_thread(thread_t* thread);
 void os_start(void);
 
 void os_burn(uint32_t ticks);

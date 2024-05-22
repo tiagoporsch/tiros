@@ -5,32 +5,108 @@
 
 #include "stm32.h"
 
-#define OS_MAX_THREADS 32
+#define max(a,b) ({ \
+	__typeof__ (a) _a = (a); \
+	__typeof__ (b) _b = (b); \
+	_a > _b ? _a : _b; \
+})
 
+#define OS_MAX_THREADS 32
 static thread_t* os_threads[OS_MAX_THREADS];
 static thread_t* os_thread_current;
 static thread_t* os_thread_next;
 static uint32_t os_ticks;
+static uint32_t os_server_inverse_bandwidth;
 
-thread_t idle_thread;
-uint8_t idle_stack[256] __attribute__ ((aligned(8)));
-void idle_main(void) {
+#define OS_MAX_APERIODIC_TASKS 16
+static struct {
+	aperiodic_task_t tasks[OS_MAX_APERIODIC_TASKS];
+	int32_t head;
+	int32_t tail;
+} aperiodic_task_queue = {
+	.head = 0,
+	.tail = 0,
+};
+
+bool os_enqueue_aperiodic_task(aperiodic_task_t aperiodic_task) {
+	if ((aperiodic_task_queue.head + 1) % OS_MAX_APERIODIC_TASKS == aperiodic_task_queue.tail)
+		return false;
+
+	// Start with d_0 = 0
+	static uint32_t previous_absolute_deadline = 0;
+
+	// Calculate a new absolute deadline by the equation max(t, d_(k-1)) + C/(1-U) where
+	//   t is the current time,
+	//   d_(k-1) is the absolute deadline of the previous aperiodic request,
+	//   C is the aperiodic requests computation time,
+	//   1/(1-U) is the servers bandwidth.
+	aperiodic_task.absolute_deadline = max(os_ticks, previous_absolute_deadline) + aperiodic_task.computation_time * os_server_inverse_bandwidth;
+	previous_absolute_deadline = aperiodic_task.absolute_deadline;
+
+	// Add the task to the queue
+	aperiodic_task_queue.tasks[aperiodic_task_queue.head] = aperiodic_task;
+	aperiodic_task_queue.head = (aperiodic_task_queue.head + 1) % OS_MAX_APERIODIC_TASKS;
+	return true;
+}
+
+static bool os_dequeue_aperiodic_task(aperiodic_task_t* aperiodic_task) {
+	if (aperiodic_task_queue.head == aperiodic_task_queue.tail)
+		return false;
+	*aperiodic_task = aperiodic_task_queue.tasks[aperiodic_task_queue.tail];
+	aperiodic_task_queue.tail = (aperiodic_task_queue.tail + 1) % OS_MAX_APERIODIC_TASKS;
+	return true;
+}
+
+static bool os_peek_aperiodic_task(aperiodic_task_t* aperiodic_task) {
+	if (aperiodic_task_queue.head == aperiodic_task_queue.tail)
+		return false;
+	*aperiodic_task = aperiodic_task_queue.tasks[aperiodic_task_queue.tail];
+	return true;
+}
+
+/*
+ * Operating system
+ */
+static thread_t os_idle_thread;
+static uint8_t os_idle_stack[256] __attribute__ ((aligned(8)));
+static void os_idle_main(void) {
 	while (true) {}
 }
 
+static thread_t os_server_thread; 
+static uint8_t os_server_stack[256] __attribute__ ((aligned(8)));
+static void os_server_main(void) {
+	gpio_write(GPIOC, 13, true);
+	aperiodic_task_t aperiodic_task;
+	OS_ASSERT(os_dequeue_aperiodic_task(&aperiodic_task));
+	os_burn(aperiodic_task.computation_time);
+	gpio_write(GPIOC, 13, false);
+}
+
 static void os_schedule(void) {
+	// If there is an unserved aperiodic task
+	aperiodic_task_t aperiodic_task;
+	if (os_peek_aperiodic_task(&aperiodic_task) && os_server_thread.activation_time == UINT32_MAX) {
+		// Activate the server thread
+		os_server_thread.relative_deadline = aperiodic_task.absolute_deadline - os_ticks;
+		os_server_thread.activation_time = os_ticks;
+	}
+
+	// Find the highest-priority thread (smallest absolute deadline)
 	os_thread_next = os_threads[0];
 	uint32_t earliest_absolute_deadline = UINT32_MAX;
 	for (uint32_t i = 1; i < OS_MAX_THREADS; i++) {
 		thread_t* thread = os_threads[i];
 		if (!thread || thread->activation_time > os_ticks || thread->delayed_until > os_ticks)
 			continue;
-		uint32_t absolute_deadline = thread->activation_time + thread->deadline;
+		uint32_t absolute_deadline = thread->activation_time + thread->relative_deadline;
 		if (absolute_deadline <= earliest_absolute_deadline) {
 			os_thread_next = thread;
 			earliest_absolute_deadline = absolute_deadline;
 		}
 	}
+
+	// Switch to the highest-priority thread
 	if (os_thread_next != os_thread_current) {
 		if (os_thread_current != NULL) {
 #if defined(OS_DEBUG_GPIO)
@@ -54,25 +130,37 @@ static void os_schedule(void) {
 	}
 }
 
-void os_init(void) {
+void os_init(uint32_t server_inverse_bandwidth) {
 #if defined(OS_DEBUG_GPIO)
 	gpio_init(GPIOA);
 #endif
 #if defined(OS_DEBUG_USART)
 	usart_init(USART1, rcc_get_clock() / 115200);
 #endif
+
 	nvic_set_priority(IRQN_PENDSV, 0xFF);
-	idle_thread = (thread_t) {
-		.stack_begin = &idle_stack[sizeof(idle_stack)],
-		.entry_point = &idle_main,
-		.deadline = UINT32_MAX,
-		.period = 0,
+
+	os_idle_thread = (thread_t) {
+		.stack_begin = &os_idle_stack[sizeof(os_idle_stack)],
+		.entry_point = &os_idle_main,
+		.relative_deadline = UINT32_MAX,
+		.period = UINT32_MAX,
 	};
-	os_thread_add(&idle_thread);
+	os_add_thread(&os_idle_thread);
+
+	os_server_inverse_bandwidth = server_inverse_bandwidth;
+	os_server_thread = (thread_t) {
+		.stack_begin = &os_server_stack[sizeof(os_server_stack)],
+		.entry_point = &os_server_main,
+		.relative_deadline = UINT32_MAX,
+		.period = UINT32_MAX,
+	};
+	os_add_thread(&os_server_thread);
+
 	os_ticks = 0;
 }
 
-void os_thread_add(thread_t* thread) {
+void os_add_thread(thread_t* thread) {
 	OS_ASSERT(thread);
 	thread->stack_pointer = (uint32_t*) thread->stack_begin;
 	*(--thread->stack_pointer) = (1 << 24); // xPSR
@@ -108,11 +196,16 @@ void os_thread_add(thread_t* thread) {
 }
 
 void os_start(void) {
+	// Initialize SysTick such that OS_SECONDS(1) is in fact equals to one second
+	// and assign it the highest priority
 	systick_init(rcc_get_clock() / OS_SECONDS(1));
 	nvic_set_priority(IRQN_SYSTICK, 0x00);
+
+	// Schedule the first thread and jump to it!
 	__disable_irq();
 	os_schedule();
 	__enable_irq();
+
 	OS_ASSERT(false);
 }
 
@@ -138,9 +231,16 @@ void os_yield(void) {
 
 void os_exit(void) {
 	__disable_irq();
-	os_thread_current->activation_time += os_thread_current->period;
+
+	// Add the period to the activation time. If it overflows, set it to the highest possible value
+	if (__builtin_add_overflow(os_thread_current->activation_time, os_thread_current->period, &os_thread_current->activation_time))
+		os_thread_current->activation_time = UINT32_MAX;
+
+	// Schedule the next thread
 	os_schedule();
 	__enable_irq();
+
+	// Once this thread gets scheduled again, set the lr register to os_exit, and jump to the thread's entry point
 	asm volatile (
 		"  ldr lr, =os_exit\n"
 		"  ldr r1, =os_thread_current\n"
@@ -187,6 +287,7 @@ void semaphore_signal(semaphore_t* semaphore) {
  * Handlers
  */
 void assert_handler(const char* module, int line) {
+	(void) module, (void) line;
 	__disable_irq();
 	gpio_init(GPIOC);
 	gpio_configure(GPIOC, 13, GPIO_CR_MODE_OUTPUT_50M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
@@ -268,6 +369,7 @@ void exti9_5_handler(void) {
 		return;
 	last_millis = os_current_millis();
 
-	static bool led_state = false;
-	gpio_write(GPIOC, 13, led_state = !led_state);
+	os_enqueue_aperiodic_task((aperiodic_task_t) {
+		.computation_time = OS_SECONDS(1)
+	});
 }
