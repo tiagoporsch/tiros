@@ -75,6 +75,16 @@ And, after running and debugging, this was the output from PulseView:
 
 Matching perfectly.
 
+## Resource access protocol
+
+Buttazzo shows a table containing a summary and comparison of different resource access protocols
+
+![Buttazzo, Figure 7.5, Evaluation summary of resource access protocols](images/buttazzo7-5.png)
+
+Given my personal time constraints during the development of this operating system and high concurrent demands in my life at the time, unfortunately I had to choose the simplest protocol, the Non-Preemptive Protocol (NPP).
+
+The NPP works by prohibiting a task from being preempted while it's executing a critical section. In practice, it does that by either raising the priority of the executing task to the highest priority level or disabling interrupts altogether. The latter approach was chosen for this project.
+
 ## Compiling
 
 You need `make`, `arm-none-eabi-gcc`, and `openocd` to build and flash this project. The Makefile has a `monitor` target, that by defaults uses GNU Screen to monitor the serial port.

@@ -300,7 +300,10 @@ void semaphore_wait(semaphore_t* semaphore) {
 		__disable_irq();
 	}
 	semaphore->current_value--;
-	__enable_irq();
+	// NOTE(Tiago): Do not enable IRQs now as part of the NPP.
+	// This means that as soon as semaphore_wait() returns, we are
+	// in a critical section.
+	// __enable_irq();
 }
 
 void semaphore_signal(semaphore_t* semaphore) {
@@ -308,6 +311,12 @@ void semaphore_signal(semaphore_t* semaphore) {
 	__disable_irq();
 	if (semaphore->current_value < semaphore->maximum_value)
 		semaphore->current_value++;
+	// NOTE(Tiago): Enable IRQs now as part of the NPP.
+	// This means that as soon as semaphore_signal() returns, we are
+	// *out* of a critical session.
+	// This *disallows* the use of nested critical sections.
+	// A simple "fix" would be to remove this call to __enable_irq()
+	// and leave this responsibility to the user.
 	__enable_irq();
 }
 
