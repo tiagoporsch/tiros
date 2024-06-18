@@ -85,6 +85,8 @@ Given my personal time constraints during the development of this operating syst
 
 The NPP works by prohibiting a task from being preempted while it's executing a critical section. In practice, it does that by either raising the priority of the executing task to the highest priority level or disabling interrupts altogether. The latter approach was chosen for this project.
 
+The interrupt control happens in the `semaphore_wait` and `semaphore_signal` function. Note that with this configuration, it is impossible to have nested critical sections.
+
 ## Compiling
 
 You need `make`, `arm-none-eabi-gcc`, and `openocd` to build and flash this project. The Makefile has a `monitor` target, that by defaults uses GNU Screen to monitor the serial port.
