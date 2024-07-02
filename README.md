@@ -85,6 +85,25 @@ Given my personal time constraints during the development of this operating syst
 
 The NPP works by prohibiting a task from being preempted while it's executing a critical section. In practice, it does that by either raising the priority of the executing task to the highest priority level or disabling interrupts altogether. The latter approach was chosen for this project.
 
+## Final Demonstrator
+
+The final demonstrator consists on a control system with 3 tasks, one to measure, one to calculate and one to actuate. They were designed with the deadline equal to the period, with the following parameters:
+
+
+|Task     |Computation Time (ms)|Period (ms)|
+|---------|---------------------|-----------|
+|Measure  |                   10|         50|
+|Calculate|                   25|         50|
+|Actuate  |                    5|         50|
+
+As each task needs a value from the previous task, they all share the same period, which is the rate at which the sensor is able to provide us with data. The actuate task just sets a register, so it has a very short computation time. The measurement task has to wait for the sensor to provide it with data, so it has a longer computation time. The calculate task was originally planned to do soft floating-point operations, so it has the longest period. The latest solution uses integer arithmetic, so such a long period is not necessary, however, it still works and still fits, so it was kept.
+
+There are four semaphores (representing two producer-consumer pairs) to make sure the flow of information through the tasks is consistent.
+
+A Total Bandwith Server was used to serve a very fast (1 ms computation time) aperiodic task that changes the reference value of the controller. The calculated $U_s$ was $0.2$.
+
+I2C and VL53L0X libraries were taken from GitHub user MarcelMG. [2] [3]
+
 ## Compiling
 
 You need `make`, `arm-none-eabi-gcc`, and `openocd` to build and flash this project. The Makefile has a `monitor` target, that by defaults uses GNU Screen to monitor the serial port.
@@ -92,3 +111,5 @@ You need `make`, `arm-none-eabi-gcc`, and `openocd` to build and flash this proj
 # References
 
 1. Giorgio C. Buttazzo. 2011. Hard Real-Time Computing Systems: Predictable Scheduling Algorithms and Applications (3rd. ed.). Springer Publishing Company, Incorporated.
+2. G M. M. STM32F103C8T6. Available on: https://github.com/MarcelMG/STM32F103C8T6/tree/master/I2C1
+3. G M. M. VL53L0X C library for STM32F103. Available on: https://github.com/MarcelMG/VL53L0X-STM32F103

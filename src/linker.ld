@@ -10,6 +10,11 @@ SECTIONS {
 		*(.isr_vector)
 		*(.text*)
 	} > FLASH
+	.ARM.exidx : {
+		__exidx_start = .;
+		*(.ARM.exidx* .gnu.linkonce.armexidx.*)
+		__exidx_end = .;
+  } > FLASH
 	.bss : {
 		_sbss = .;
 		*(.bss*)

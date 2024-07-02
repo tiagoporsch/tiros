@@ -126,10 +126,17 @@ struct rcc {
 #define RCC_CFGR_PLLSRC (1 << 16)
 #define RCC_CFGR_PLLMULL(x) ((x) << 18)
 
+#define RCC_APB1RSTR_I2C1RST (1 << 21)
+
+#define RCC_APB2ENR_AFIOEN (1 << 0)
 #define RCC_APB2ENR_IOPAEN (1 << 2)
 #define RCC_APB2ENR_IOPBEN (1 << 3)
 #define RCC_APB2ENR_IOPCEN (1 << 4)
+#define RCC_APB2ENR_IOPEEN (1 << 6)
 #define RCC_APB2ENR_USART1EN (1 << 14)
+
+#define RCC_APB1ENR_TIM2EN (1 << 0)
+#define RCC_APB1ENR_I2C1EN (1 << 21)
 
 void rcc_init(void);
 uint32_t rcc_get_clock(void);
@@ -184,6 +191,81 @@ void gpio_init(struct gpio* gpio);
 void gpio_configure(struct gpio* gpio, uint8_t pin, uint8_t mode, uint8_t cnf);
 void gpio_write(struct gpio* gpio, uint8_t pin, bool value);
 bool gpio_read(struct gpio* gpio, uint8_t pin);
+
+// I2C
+struct i2c {
+	volatile uint32_t cr1; // Control register 1
+	volatile uint32_t cr2; // Control register 2
+	volatile uint32_t oar1;
+	volatile uint32_t oar2;
+	volatile uint32_t dr;
+	volatile uint32_t sr1;
+	volatile uint32_t sr2;
+	volatile uint32_t ccr;
+	volatile uint32_t trise;
+};
+
+#define I2C1 ((struct i2c*) 0x40005400)
+
+#define I2C_CR1_PE (1 << 0)
+#define I2C_CR1_START (1 << 8)
+#define I2C_CR1_STOP (1 << 9)
+#define I2C_CR1_ACK (1 << 10)
+#define I2C_CR1_POS (1 << 11)
+
+#define I2C_CR2_FREQ(x) ((x) & 0b111111)
+
+#define I2C_SR1_SB (1 << 0)
+#define I2C_SR1_ADDR (1 << 1)
+#define I2C_SR1_BTF (1 << 2)
+#define I2C_SR1_RXNE (1 << 6)
+#define I2C_SR1_BERR (1 << 8)
+#define I2C_SR1_ARLO (1 << 9)
+#define I2C_SR1_AF (1 << 10)
+#define I2C_SR1_OVR (1 << 11)
+#define I2C_SR1_PECERR (1 << 12)
+#define I2C_SR1_TIMEOUT (1 << 14)
+
+// void i2c_init(struct i2c* i2c);
+
+// void i2c_read(struct i2c* i2c, uint8_t slave_address, uint8_t* data, uint8_t size);
+// void i2c_write(struct i2c* i2c, uint8_t slave_address, uint8_t* data, uint8_t size);
+
+// Timer
+struct timer {
+	volatile uint32_t cr1; // Control register 1
+	volatile uint32_t cr2; // Control register 2
+	volatile uint32_t smcr; // Slave mode control register
+	volatile uint32_t dier; // DMA/interrupt enable register
+	volatile uint32_t sr; // Status register
+	volatile uint32_t egr; // Event generation register
+	volatile uint32_t ccmr1; // Capture/compare mode register 1
+	volatile uint32_t ccmr2; // Capture/compare mode register 2
+	volatile uint32_t ccer; // Capture/compare enable register
+	volatile uint32_t cnt; // Counter register
+	volatile uint32_t psc; // Prescaler register
+	volatile uint32_t arr; // Auto-reload register
+	volatile uint32_t rcr; // Repetition counter register
+	volatile uint32_t ccr1; // Capture/compare register 1
+	volatile uint32_t ccr2; // Capture/compare register 2
+	volatile uint32_t ccr3; // Capture/compare register 3
+	volatile uint32_t ccr4; // Capture/compare register 4
+	volatile uint32_t bdtr; // Break and dead-time register
+	volatile uint32_t dcr; // DMA control register
+	volatile uint32_t dmar; // DMA address for full transfer register
+	volatile uint32_t or; // Option register
+};
+
+#define TIMER2 ((struct timer*) 0x40000000)
+
+#define TIMER_CR1_CEN (1 << 0)
+
+#define TIMER_CCMR1_OC2M_1 (2 << 12)
+#define TIMER_CCMR1_OC2M_2 (4 << 12)
+
+#define TIMER_CCER_CC2E (1 << 4)
+
+void timer_init(struct timer* timer);
 
 // Universal synchronous asynchronous receiver transmitter (USART)
 struct usart {

@@ -121,7 +121,7 @@ static void os_schedule(void) {
 		// Turn on and off debugging pins
 		if (os_thread_current != NULL) {
 			#if defined(OS_DEBUG_GPIO)
-				gpio_write(GPIOA, os_thread_current->id, false);
+				gpio_write(GPIOA, os_thread_current->id + 2, false);
 			#endif
 			#if defined(OS_DEBUG_USART)
 				usart_write(USART1, 1);
@@ -129,7 +129,7 @@ static void os_schedule(void) {
 			#endif
 		}
 		#if defined(OS_DEBUG_GPIO)
-			gpio_write(GPIOA, os_thread_current->id, true);
+			gpio_write(GPIOA, os_thread_current->id + 2, true);
 		#endif
 		#if defined(OS_DEBUG_USART)
 			usart_write(USART1, 0);
@@ -210,8 +210,8 @@ void os_add_thread(thread_t* thread) {
 	thread->delayed_until = os_ticks;
 
 	#if defined(OS_DEBUG_GPIO)
-		gpio_configure(GPIOA, thread->id, GPIO_CR_MODE_OUTPUT_2M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
-		gpio_write(GPIOA, thread->id, false);
+		gpio_configure(GPIOA, thread->id + 2, GPIO_CR_MODE_OUTPUT_2M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
+		gpio_write(GPIOA, thread->id + 2, false);
 	#endif
 }
 
@@ -228,13 +228,6 @@ void os_start(void) {
 	__enable_irq();
 
 	OS_ASSERT(false);
-}
-
-void os_tick(void) {
-	__disable_irq();
-	os_ticks++;
-	os_schedule();
-	__enable_irq();
 }
 
 void os_burn(uint32_t ticks) {
@@ -393,4 +386,11 @@ void pendsv_handler(void) {
 		// return;
 		"  bx lr\n"
 	);
+}
+
+void systick_handler(void) {
+	__disable_irq();
+	os_ticks++;
+	os_schedule();
+	__enable_irq();
 }
