@@ -1,7 +1,7 @@
 > [!NOTE]  
 > Subject is over. This project will no longer be maintained.
 
-# MiROS STM32F103C8T6
+# TiROS
 
 This project contains a heavily modified version of MiROS that uses an EDF (Earliest Deadline First) scheduler. Given the choice to implement a Rate Monotonic, Deadline Monotonic or EDF scheduler, the EDF was chosen for it's expandability and ease of implementation.
 
