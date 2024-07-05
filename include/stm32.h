@@ -219,6 +219,7 @@ struct i2c {
 #define I2C_SR1_ADDR (1 << 1)
 #define I2C_SR1_BTF (1 << 2)
 #define I2C_SR1_RXNE (1 << 6)
+#define I2C_SR1_TXE (1 << 7)
 #define I2C_SR1_BERR (1 << 8)
 #define I2C_SR1_ARLO (1 << 9)
 #define I2C_SR1_AF (1 << 10)
@@ -226,10 +227,10 @@ struct i2c {
 #define I2C_SR1_PECERR (1 << 12)
 #define I2C_SR1_TIMEOUT (1 << 14)
 
-// void i2c_init(struct i2c* i2c);
+void i2c_init(struct i2c* i2c);
 
-// void i2c_read(struct i2c* i2c, uint8_t slave_address, uint8_t* data, uint8_t size);
-// void i2c_write(struct i2c* i2c, uint8_t slave_address, uint8_t* data, uint8_t size);
+void i2c_read(struct i2c* i2c, uint8_t slave_address, uint8_t* data, uint8_t size);
+void i2c_write(struct i2c* i2c, uint8_t slave_address, uint8_t* data, uint8_t size);
 
 // Timer
 struct timer {

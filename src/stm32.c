@@ -88,54 +88,62 @@ bool gpio_read(struct gpio* gpio, uint8_t pin) {
 }
 
 // I2C
-// void i2c_init(struct i2c* i2c) {
-// 	switch ((uint32_t) i2c) {
-// 		case (uint32_t) I2C1:
-// 			RCC->apb1enr |= RCC_APB1ENR_I2C1EN;
-// 			RCC->apb2enr |= RCC_APB2ENR_IOPBEN;
-// 			gpio_configure(GPIOB, 6, GPIO_CR_MODE_OUTPUT_50M, GPIO_CR_CNF_OUTPUT_ALT_OPEN_DRAIN);
-// 			gpio_configure(GPIOB, 7, GPIO_CR_MODE_OUTPUT_50M, GPIO_CR_CNF_OUTPUT_ALT_OPEN_DRAIN);
-// 			break;
-// 	}
-// 	i2c->cr2 = I2C_CR2_FREQ(36);
-// 	i2c->ccr = 180;
-// 	i2c->trise = 37;
-// 	i2c->cr1 |= I2C_CR1_PE;
-// }
+void i2c_init(struct i2c* i2c) {
+	switch ((uint32_t) i2c) {
+		case (uint32_t) I2C1:
+			RCC->apb1enr |= RCC_APB1ENR_I2C1EN;
+			RCC->apb2enr |= RCC_APB2ENR_IOPBEN;
+			gpio_configure(GPIOB, 6, GPIO_CR_MODE_OUTPUT_50M, GPIO_CR_CNF_OUTPUT_ALT_OPEN_DRAIN);
+			gpio_configure(GPIOB, 7, GPIO_CR_MODE_OUTPUT_50M, GPIO_CR_CNF_OUTPUT_ALT_OPEN_DRAIN);
+			break;
+	}
+	i2c->cr2 = I2C_CR2_FREQ(36);
+	i2c->ccr = 180;
+	i2c->trise = 37;
+	i2c->cr1 |= I2C_CR1_PE;
+}
 
-// uint8_t i2c_read(struct i2c* i2c, uint8_t slave_address) {
-// 	i2c->cr1 |= I2C_CR1_START;
-// 	while (!(i2c->sr1 & I2C_SR1_SB));
-// 	i2c->dr = (slave_address << 1) | 1;
-// 	while (!(i2c->sr1 & I2C_SR1_ADDR));
-// 	i2c->cr1 &= ~I2C_CR1_ACK;
-// 	__disable_irq();
-// 	i2c->sr1;
-// 	i2c->sr2;
-// 	i2c->cr1 |= I2C_CR1_STOP;
-// 	__enable_irq();
-// 	uint8_t data = i2c->dr;
-// 	while (i2c->cr1 & I2C_CR1_STOP);
-// 	i2c->cr1 |= I2C_CR1_ACK;
-// 	return data;
-// }
+void i2c_read(struct i2c* i2c, uint8_t slave_address, uint8_t* data, uint8_t size) {
+	i2c->cr1 &= ~I2C_CR1_POS;
+	i2c->cr1 |= I2C_CR1_START | I2C_CR1_ACK;
+	while (!(i2c->sr1 & I2C_SR1_SB));
+	i2c->dr = (slave_address << 1) | 1;
+	while (!(i2c->sr1 & I2C_SR1_ADDR));
+	i2c->sr1;
+	i2c->sr2;
+	uint8_t index;
+	for (index = 0; index < size; index++) {
+		if (index + 1 == size) {
+			i2c->cr1 &= ~I2C_CR1_ACK;
+			i2c->cr1 |= I2C_CR1_STOP;
+		}
+		while (!(i2c->sr1 & I2C_SR1_RXNE));
+		data[index] = i2c->dr;
+	}
+}
 
-// void i2c_write(struct i2c* i2c, uint8_t slave_address, uint8_t* data, uint8_t size) {
-// 	i2c->cr1 |= I2C_CR1_START;
-// 	while (!(i2c->sr1 & I2C_SR1_SB));
-// 	i2c->dr = (slave_address << 1) | 0;
-// 	while (!(i2c->sr1 & I2C_SR1_ADDR));
-// 	i2c->sr1;
-// 	i2c->sr2;
-// 	while (size) {
-// 		i2c->dr = *data;
-// 		while (!(i2c->sr1 & I2C_SR1_BTF));
-// 		data++;
-// 		size--;
-// 	}
-// 	i2c->cr1 |= I2C_CR1_STOP;
-// 	while (i2c->cr1 & I2C_CR1_STOP);
-// }
+void i2c_write(struct i2c* i2c, uint8_t slave_address, uint8_t* data, uint8_t size) {
+	volatile uint16_t reg;
+	i2c->cr1 &= ~I2C_CR1_POS;
+	i2c->cr1 |= I2C_CR1_START;
+	while (!(i2c->sr1 & I2C_SR1_SB));
+	i2c->dr = (slave_address << 1) | 0;
+	while (!(i2c->sr1 & I2C_SR1_ADDR));
+	reg = i2c->sr1;
+	reg = i2c->sr2;
+	while (!(i2c->sr1 & I2C_SR1_TXE));
+	for (uint8_t index = 0; index < size; index++) {
+		i2c->dr = data[index];
+		while (!(i2c->sr1 & I2C_SR1_TXE));
+		while (!(i2c->sr1 & I2C_SR1_BTF));
+		reg = i2c->sr1;
+		reg = i2c->sr2;
+	}
+	i2c->cr1 |= I2C_CR1_STOP;
+	reg = i2c->sr1;
+	reg = i2c->sr2;
+	(void) reg;
+}
 
 // Timer
 void timer_init(struct timer* timer) {

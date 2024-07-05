@@ -31,9 +31,6 @@ static struct {
 bool os_enqueue_aperiodic_task(void (*entry_point)(void), uint32_t computation_time) {
 	__disable_irq();
 
-	// TEMP(Tiago): debug aperiodic request using pin A9
-	gpio_write(GPIOA, 9, true);
-
 	// If the queue is full, return false
 	if ((aperiodic_task_queue.head + 1) % OS_MAX_APERIODIC_TASKS == aperiodic_task_queue.tail)
 		return false;
@@ -52,9 +49,6 @@ bool os_enqueue_aperiodic_task(void (*entry_point)(void), uint32_t computation_t
 	previous_absolute_deadline = aperiodic_task->absolute_deadline;
 
 	aperiodic_task_queue.head = (aperiodic_task_queue.head + 1) % OS_MAX_APERIODIC_TASKS;
-
-	// TEMP(Tiago): debug aperiodic request using pin A9
-	gpio_write(GPIOA, 9, false);
 
 	__enable_irq();
 	return true;
@@ -149,10 +143,6 @@ void os_init(uint32_t server_inverse_bandwidth) {
 	#if defined(OS_DEBUG_USART)
 		usart_init(USART1, rcc_get_clock() / 115200);
 	#endif
-
-	// TEMP(Tiago): Enable GPIO A pin 9 for aperiodic request debugging
-	gpio_configure(GPIOA, 9, GPIO_CR_MODE_OUTPUT_2M, GPIO_CR_CNF_OUTPUT_PUSH_PULL);
-	gpio_write(GPIOA, 9, false);
 
 	// Set PendSV to the lowest priority
 	nvic_set_priority(IRQN_PENDSV, 0xFF);

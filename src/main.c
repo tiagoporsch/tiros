@@ -1,13 +1,12 @@
-#include "i2c.h"
 #include "miros.h"
 #include "stm32.h"
 #include "VL53L0X.h"
 
 // Sensor
-struct VL53L0X myTOFsensor = {.io_2v8 = true, .address = 0b0101001, .io_timeout = 500, .did_timeout = false};
+static struct VL53L0X myTOFsensor = {.io_2v8 = true, .address = 0b0101001, .io_timeout = 500, .did_timeout = false};
 
 // Controller
-static int CONTROLLER_PERIOD = OS_MILLIS(100);
+static int CONTROLLER_PERIOD = OS_MILLIS(50);
 
 // Inter-process communication
 static int measured_value = 0; // mm
@@ -19,14 +18,14 @@ static semaphore_t actuator_occupied_semaphore, actuator_available_semaphore;
 
 // PWM
 static const uint32_t PMW_PRESCALE = 1e6; // Hz
-static const uint32_t PWM_FREQUENCY = 30e0; // Hz
+static const uint32_t PWM_FREQUENCY = 25e3; // Hz
 
 thread_t sensor_thread;
 uint8_t sensor_stack[256] __attribute__ ((aligned(8)));
 void sensor_main(void) {
 	// Wait for the previously measured value to be consumed
 	semaphore_wait(&measure_available_semaphore);
-	measured_value = VL53L0X_readRangeContinuousMillimeters(&myTOFsensor);
+	// measured_value = VL53L0X_readRangeContinuousMillimeters(&myTOFsensor) - 400;
 	// Signal that the newly measured value is ready
 	semaphore_signal(&measure_occupied_semaphore);
 }
@@ -36,8 +35,8 @@ uint8_t controller_stack[256] __attribute__ ((aligned(8)));
 void controller_main(void) {
 	// Use these values to work around floating-point math
 	static int kp = -10; // -0.00010
-	static int kd = -1;  //  0.00001
-	static int ki = 1;   //  0.00001
+	static int ki = -1;  // -0.00001
+	static int kd =  1;  //  0.00001
 
 	static int error_sum = 0;
 	static int previous_measured_value = 0;
@@ -48,18 +47,22 @@ void controller_main(void) {
 	semaphore_wait(&actuator_available_semaphore);
 
 	int error = reference_value - measured_value;
-	duty_cycle = kp * error;
-	duty_cycle += ki * error_sum * CONTROLLER_PERIOD;
-	duty_cycle -= kd * (measured_value - previous_measured_value) / CONTROLLER_PERIOD;
+	int output = kp * error;
+	output += ki * error_sum * CONTROLLER_PERIOD;
+	output -= kd * (measured_value - previous_measured_value) / CONTROLLER_PERIOD;
 
 	previous_measured_value = measured_value;
 	error_sum += error;
+	if (error_sum < -1000)
+		error_sum = -1000;
+	if (error_sum > 1000)
+		error_sum = 1000;
 
-	if (duty_cycle < -30000)
-		duty_cycle = -30000;
-	else if (duty_cycle > 30000)
-		duty_cycle = 30000;
-	duty_cycle = (duty_cycle + 61000) / 1000; // Compensate the floating point workaround
+	if (output < -30000)
+		output = -30000;
+	else if (output > 30000)
+		output = 30000;
+	duty_cycle = (output + 61000) / 1000; // Compensate the floating point workaround
 
 	// Signal that the newly calculated value is ready
 	semaphore_signal(&actuator_occupied_semaphore);
@@ -72,17 +75,29 @@ uint8_t actuator_stack[256] __attribute__ ((aligned(8)));
 void actuator_main(void) {
 	// Wait for the calculated value to be ready
 	semaphore_wait(&actuator_occupied_semaphore);
-	TIMER2->ccr2 = TIMER2->arr * duty_cycle / 100;
+	// TIMER2->ccr2 = TIMER2->arr * duty_cycle / 100;
 	// Signal that the calculated value was consumed
 	semaphore_signal(&actuator_available_semaphore);
 }
 
 void change_main(void) {
+	gpio_write(GPIOC, 13, true);
 	switch (reference_value) {
-		default:  reference_value = 250; break;
-		case 250: reference_value = 500; break;
-		case 500: reference_value = 750; break;
+		default:
+			reference_value = 250;
+			TIMER2->ccr2 = TIMER2->arr * 91 / 100;
+			break;
+		case 250:
+			reference_value = 500;
+			TIMER2->ccr2 = TIMER2->arr * 61 / 100;
+			break;
+		case 500:
+			reference_value = 750;
+			TIMER2->ccr2 = TIMER2->arr * 31 / 100;
+			break;
 	}
+	for (int i = 0; i < 500000; i++);
+	gpio_write(GPIOC, 13, false);
 }
 
 int main(void) {
@@ -101,22 +116,22 @@ int main(void) {
 	exti_enable(8);
 	nvic_enable_irq(IRQN_EXTI9_5);
 
-	// Configure VL53L0X
-	init_i2c1();
-	VL53L0X_init(&myTOFsensor);
-	VL53L0X_setMeasurementTimingBudget(&myTOFsensor, 20e3); // 20 ms
-	VL53L0X_startContinuous(&myTOFsensor, 0);
-
 	// Configure TIM2 for PWM output
 	timer_init(TIMER2);
 	gpio_init(GPIOA);
 	gpio_configure(GPIOA, 1, GPIO_CR_MODE_OUTPUT_50M, GPIO_CR_CNF_OUTPUT_ALT_PUSH_PULL);
 	TIMER2->psc = rcc_get_clock() / PMW_PRESCALE - 1;
 	TIMER2->arr = PMW_PRESCALE / PWM_FREQUENCY;
-	TIMER2->ccr2 = TIMER2->arr * duty_cycle / 100;
+	TIMER2->ccr2 = TIMER2->arr * 91 / 100;
 	TIMER2->ccmr1 |= TIMER_CCMR1_OC2M_1 | TIMER_CCMR1_OC2M_2; // PWM mode 1
 	TIMER2->ccer |= TIMER_CCER_CC2E; // enable output compare on OC2 pin
 	TIMER2->cr1 |= TIMER_CR1_CEN; // enable timer
+
+	// Configure VL53L0X
+	// usart_init(USART1, rcc_get_clock() / 115200);
+	// VL53L0X_init(&myTOFsensor);
+	// VL53L0X_setMeasurementTimingBudget(&myTOFsensor, 20e3); // 20 ms
+	// VL53L0X_startContinuous(&myTOFsensor, 0);
 
 	// Initialize operating system
 	os_init(5);
